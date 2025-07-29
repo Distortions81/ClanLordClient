@@ -101,7 +101,7 @@ func requestCharList(conn net.Conn, account, password string, challenge []byte) 
 	if resTag != kMsgCharList {
 		return nil, fmt.Errorf("unexpected tag %d", resTag)
 	}
-	result := binary.BigEndian.Uint16(resp[2:4])
+	result := int16(binary.BigEndian.Uint16(resp[2:4]))
 	simpleEncrypt(resp[16:])
 	if result != 0 {
 		return nil, fmt.Errorf("server result %d", result)
@@ -219,6 +219,6 @@ func main() {
 	if resTag != kMsgLogOnResp {
 		log.Fatalf("unexpected response tag %d", resTag)
 	}
-	result := binary.BigEndian.Uint16(resp[2:4])
+	result := int16(binary.BigEndian.Uint16(resp[2:4]))
 	fmt.Printf("login result: %d\n", result)
 }
