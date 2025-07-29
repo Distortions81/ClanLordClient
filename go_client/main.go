@@ -76,12 +76,13 @@ func requestCharList(conn net.Conn, account, password string, challenge []byte) 
 
 	const kMsgCharList = 14
 	const clientVersion = 346368
+	const dataVersion = clientVersion
 	buf := make([]byte, 16+len(account)+1+len(answer))
 	binary.BigEndian.PutUint16(buf[0:2], kMsgCharList)
 	binary.BigEndian.PutUint16(buf[2:4], 0)
 	binary.BigEndian.PutUint32(buf[4:8], clientVersion)
-	binary.BigEndian.PutUint32(buf[8:12], 0)
-	binary.BigEndian.PutUint32(buf[12:16], 0)
+	binary.BigEndian.PutUint32(buf[8:12], dataVersion)
+	binary.BigEndian.PutUint32(buf[12:16], dataVersion)
 	copy(buf[16:], []byte(account))
 	buf[16+len(account)] = 0
 	copy(buf[17+len(account):], answer)
@@ -195,12 +196,13 @@ func main() {
 
 	const kMsgLogOn = 13
 	const clientVersion = 346368
+	const dataVersion = clientVersion
 	buf := make([]byte, 16+len(*name)+1+len(answer))
 	binary.BigEndian.PutUint16(buf[0:2], kMsgLogOn)
 	binary.BigEndian.PutUint16(buf[2:4], 0)
 	binary.BigEndian.PutUint32(buf[4:8], clientVersion)
-	binary.BigEndian.PutUint32(buf[8:12], 0)
-	binary.BigEndian.PutUint32(buf[12:16], 0)
+	binary.BigEndian.PutUint32(buf[8:12], dataVersion)
+	binary.BigEndian.PutUint32(buf[12:16], dataVersion)
 	copy(buf[16:], []byte(*name))
 	buf[16+len(*name)] = 0
 	copy(buf[17+len(*name):], answer)
