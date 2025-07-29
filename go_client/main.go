@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/md5"
 	"encoding/binary"
@@ -67,10 +68,71 @@ func readMessage(conn net.Conn) ([]byte, error) {
 	return buf, nil
 }
 
+func requestCharList(conn net.Conn, account, password string, challenge []byte) ([]string, error) {
+	answer, err := answerChallenge(password, challenge)
+	if err != nil {
+		return nil, err
+	}
+
+	const kMsgCharList = 14
+	const clientVersion = 346368
+	buf := make([]byte, 16+len(account)+1+len(answer))
+	binary.BigEndian.PutUint16(buf[0:2], kMsgCharList)
+	binary.BigEndian.PutUint16(buf[2:4], 0)
+	binary.BigEndian.PutUint32(buf[4:8], clientVersion)
+	binary.BigEndian.PutUint32(buf[8:12], 0)
+	binary.BigEndian.PutUint32(buf[12:16], 0)
+	copy(buf[16:], []byte(account))
+	buf[16+len(account)] = 0
+	copy(buf[17+len(account):], answer)
+	simpleEncrypt(buf[16:])
+	if err := sendMessage(conn, buf); err != nil {
+		return nil, err
+	}
+
+	resp, err := readMessage(conn)
+	if err != nil {
+		return nil, err
+	}
+	if len(resp) < 28 {
+		return nil, fmt.Errorf("short char list resp")
+	}
+	resTag := binary.BigEndian.Uint16(resp[:2])
+	if resTag != kMsgCharList {
+		return nil, fmt.Errorf("unexpected tag %d", resTag)
+	}
+	result := binary.BigEndian.Uint16(resp[2:4])
+	simpleEncrypt(resp[16:])
+	if result != 0 {
+		return nil, fmt.Errorf("server result %d", result)
+	}
+
+	data := resp[16:]
+	_ = binary.BigEndian.Uint32(data[0:4])  // status
+	_ = binary.BigEndian.Uint32(data[4:8])  // paid up
+	_ = binary.BigEndian.Uint32(data[8:12]) // max chars
+
+	namesData := data[12:]
+	var names []string
+	for len(namesData) > 0 {
+		i := bytes.IndexByte(namesData, 0)
+		if i < 0 {
+			break
+		}
+		if i == 0 {
+			break
+		}
+		names = append(names, string(namesData[:i]))
+		namesData = namesData[i+1:]
+	}
+	return names, nil
+}
+
 func main() {
 	host := flag.String("host", "server.deltatao.com:5010", "server address")
 	name := flag.String("name", "demo", "character name")
 	pass := flag.String("pass", "demo", "character password")
+	listDemo := flag.Bool("list-demo", false, "list available demo characters")
 	flag.Parse()
 
 	tcpConn, err := net.Dial("tcp", *host)
@@ -114,6 +176,17 @@ func main() {
 		log.Fatalf("unexpected msg tag %d", tag)
 	}
 	challenge := msg[8 : 8+16] // skip header fields
+
+	if *listDemo {
+		names, err := requestCharList(tcpConn, "demo", "demo", challenge)
+		if err != nil {
+			log.Fatalf("list demo: %v", err)
+		}
+		for _, n := range names {
+			fmt.Println(n)
+		}
+		return
+	}
 
 	answer, err := answerChallenge(*pass, challenge)
 	if err != nil {
