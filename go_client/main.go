@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
 )
 
 func simpleEncrypt(data []byte) {
@@ -22,6 +23,51 @@ func simpleEncrypt(data []byte) {
 			j = 0
 		}
 	}
+}
+
+const (
+	kTypeVersion = 0x56657273 // 'Vers'
+)
+
+// readKeyFileVersion reads the kTypeVersion record from a DTS key file.
+func readKeyFileVersion(path string) (uint32, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	var header [12]byte
+	if _, err := io.ReadFull(f, header[:]); err != nil {
+		return 0, err
+	}
+	count := int(binary.BigEndian.Uint32(header[2:6]))
+
+	entry := make([]byte, 16)
+	for i := 0; i < count; i++ {
+		if _, err := io.ReadFull(f, entry); err != nil {
+			return 0, err
+		}
+		pos := binary.BigEndian.Uint32(entry[0:4])
+		size := binary.BigEndian.Uint32(entry[4:8])
+		typ := binary.BigEndian.Uint32(entry[8:12])
+		id := binary.BigEndian.Uint32(entry[12:16])
+		if typ == kTypeVersion && id == 0 {
+			if _, err := f.Seek(int64(pos), io.SeekStart); err != nil {
+				return 0, err
+			}
+			buf := make([]byte, size)
+			if _, err := io.ReadFull(f, buf); err != nil {
+				return 0, err
+			}
+			v := binary.BigEndian.Uint32(buf)
+			if v <= 0xFF {
+				v <<= 8
+			}
+			return v, nil
+		}
+	}
+	return 0, fmt.Errorf("version record not found in %s", path)
 }
 
 func answerChallenge(password string, challenge []byte) ([]byte, error) {
@@ -68,21 +114,19 @@ func readMessage(conn net.Conn) ([]byte, error) {
 	return buf, nil
 }
 
-func requestCharList(conn net.Conn, account, password string, challenge []byte) ([]string, error) {
+func requestCharList(conn net.Conn, account, password string, challenge []byte, clientVersion, imagesVersion, soundsVersion uint32) ([]string, error) {
 	answer, err := answerChallenge(password, challenge)
 	if err != nil {
 		return nil, err
 	}
 
 	const kMsgCharList = 14
-	const clientVersion = 346368
-	const dataVersion = clientVersion
 	buf := make([]byte, 16+len(account)+1+len(answer))
 	binary.BigEndian.PutUint16(buf[0:2], kMsgCharList)
 	binary.BigEndian.PutUint16(buf[2:4], 0)
 	binary.BigEndian.PutUint32(buf[4:8], clientVersion)
-	binary.BigEndian.PutUint32(buf[8:12], dataVersion)
-	binary.BigEndian.PutUint32(buf[12:16], dataVersion)
+	binary.BigEndian.PutUint32(buf[8:12], imagesVersion)
+	binary.BigEndian.PutUint32(buf[12:16], soundsVersion)
 	copy(buf[16:], []byte(account))
 	buf[16+len(account)] = 0
 	copy(buf[17+len(account):], answer)
@@ -136,6 +180,18 @@ func main() {
 	listDemo := flag.Bool("list-demo", false, "list available demo characters")
 	flag.Parse()
 
+	const clientVersion = 346368
+	imagesVersion, err := readKeyFileVersion("CL_Images")
+	if err != nil {
+		log.Printf("warning: %v", err)
+		imagesVersion = clientVersion
+	}
+	soundsVersion, err := readKeyFileVersion("CL_Sounds")
+	if err != nil {
+		log.Printf("warning: %v", err)
+		soundsVersion = clientVersion
+	}
+
 	tcpConn, err := net.Dial("tcp", *host)
 	if err != nil {
 		log.Fatalf("tcp connect: %v", err)
@@ -179,7 +235,7 @@ func main() {
 	challenge := msg[8 : 8+16] // skip header fields
 
 	if *listDemo {
-		names, err := requestCharList(tcpConn, "demo", "demo", challenge)
+		names, err := requestCharList(tcpConn, "demo", "demo", challenge, clientVersion, imagesVersion, soundsVersion)
 		if err != nil {
 			log.Fatalf("list demo: %v", err)
 		}
@@ -195,14 +251,12 @@ func main() {
 	}
 
 	const kMsgLogOn = 13
-	const clientVersion = 346368
-	const dataVersion = clientVersion
 	buf := make([]byte, 16+len(*name)+1+len(answer))
 	binary.BigEndian.PutUint16(buf[0:2], kMsgLogOn)
 	binary.BigEndian.PutUint16(buf[2:4], 0)
 	binary.BigEndian.PutUint32(buf[4:8], clientVersion)
-	binary.BigEndian.PutUint32(buf[8:12], dataVersion)
-	binary.BigEndian.PutUint32(buf[12:16], dataVersion)
+	binary.BigEndian.PutUint32(buf[8:12], imagesVersion)
+	binary.BigEndian.PutUint32(buf[12:16], soundsVersion)
 	copy(buf[16:], []byte(*name))
 	buf[16+len(*name)] = 0
 	copy(buf[17+len(*name):], answer)
