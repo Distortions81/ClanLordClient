@@ -218,6 +218,41 @@ func sendMessage(conn net.Conn, msg []byte) error {
 	return err
 }
 
+func sendUDPMessage(conn net.Conn, msg []byte) error {
+	var size [2]byte
+	binary.BigEndian.PutUint16(size[:], uint16(len(msg)))
+	buf := append(size[:], msg...)
+	_, err := conn.Write(buf)
+	hexDump("send", msg)
+	return err
+}
+
+func readUDPMessage(conn net.Conn) ([]byte, error) {
+	buf := make([]byte, 65535)
+	n, err := conn.Read(buf)
+	if err != nil {
+		return nil, err
+	}
+	if n < 2 {
+		return nil, fmt.Errorf("short udp packet")
+	}
+	sz := int(binary.BigEndian.Uint16(buf[:2]))
+	if sz > n-2 {
+		return nil, fmt.Errorf("incomplete udp packet")
+	}
+	msg := append([]byte(nil), buf[2:2+sz]...)
+	hexDump("recv", msg)
+	return msg, nil
+}
+
+func sendPlayerInput(conn net.Conn) error {
+	const kMsgPlayerInput = 3
+	buf := make([]byte, 20+1)
+	binary.BigEndian.PutUint16(buf[0:2], kMsgPlayerInput)
+	buf[20] = 0
+	return sendUDPMessage(conn, buf)
+}
+
 func readMessage(conn net.Conn) ([]byte, error) {
 	var sizeBuf [2]byte
 	if _, err := io.ReadFull(conn, sizeBuf[:]); err != nil {
@@ -657,6 +692,53 @@ func main() {
 			fmt.Println("login succeeded, reading messages (Ctrl-C to quit)...")
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
+
+			if err := sendPlayerInput(udpConn2); err != nil {
+				fmt.Printf("send player input: %v\n", err)
+			}
+
+			go func() {
+				ticker := time.NewTicker(2 * time.Second)
+				defer ticker.Stop()
+				for {
+					if err := sendPlayerInput(udpConn2); err != nil {
+						fmt.Printf("send player input: %v\n", err)
+					}
+					select {
+					case <-ctx.Done():
+						return
+					case <-ticker.C:
+					}
+				}
+			}()
+
+			go func() {
+				for {
+					if err := udpConn2.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+						fmt.Printf("udp deadline: %v\n", err)
+						return
+					}
+					m, err := readUDPMessage(udpConn2)
+					if err != nil {
+						if ne, ok := err.(net.Error); ok && ne.Timeout() {
+							select {
+							case <-ctx.Done():
+								return
+							default:
+								continue
+							}
+						}
+						fmt.Printf("udp read error: %v\n", err)
+						return
+					}
+					if txt := decodeMessage(m); txt != "" {
+						fmt.Println(txt)
+					} else {
+						fmt.Printf("udp msg tag %d len %d\n", binary.BigEndian.Uint16(m[:2]), len(m))
+					}
+				}
+			}()
+
 		loop:
 			for {
 				if err := tcpConn2.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
