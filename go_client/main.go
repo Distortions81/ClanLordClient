@@ -659,20 +659,32 @@ func main() {
 			defer stop()
 		loop:
 			for {
+				if err := tcpConn2.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+					fmt.Printf("set read deadline: %v\n", err)
+					break
+				}
+				m, err := readMessage(tcpConn2)
+				if err != nil {
+					if ne, ok := err.(net.Error); ok && ne.Timeout() {
+						select {
+						case <-ctx.Done():
+							break loop
+						default:
+							continue
+						}
+					}
+					fmt.Printf("read error: %v\n", err)
+					break
+				}
+				if txt := decodeMessage(m); txt != "" {
+					fmt.Println(txt)
+				} else {
+					fmt.Printf("msg tag %d len %d\n", binary.BigEndian.Uint16(m[:2]), len(m))
+				}
 				select {
 				case <-ctx.Done():
 					break loop
 				default:
-					m, err := readMessage(tcpConn2)
-					if err != nil {
-						fmt.Printf("read error: %v\n", err)
-						break loop
-					}
-					if txt := decodeMessage(m); txt != "" {
-						fmt.Println(txt)
-					} else {
-						fmt.Printf("msg tag %d len %d\n", binary.BigEndian.Uint16(m[:2]), len(m))
-					}
 				}
 			}
 			tcpConn2.Close()
