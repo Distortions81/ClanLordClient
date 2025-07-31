@@ -27,6 +27,8 @@ import (
 	"time"
 )
 
+var mouseX, mouseY = uint16(rand.Intn(1600)), uint16(rand.Intn(1200))
+
 func simpleEncrypt(data []byte) {
 	key := []byte{0x3c, 0x5a, 0x69, 0x93, 0xa5, 0xc6}
 	j := 0
@@ -252,9 +254,9 @@ func sendPlayerInput(conn net.Conn) error {
 	const kMsgPlayerInput = 3
 	buf := make([]byte, 20+1)
 	binary.BigEndian.PutUint16(buf[0:2], kMsgPlayerInput)
-	binary.BigEndian.PutUint16(buf[2:4], 0) // mouse H
-	binary.BigEndian.PutUint16(buf[4:6], 0) // mouse V
-	binary.BigEndian.PutUint16(buf[6:8], 0) // flags
+	binary.BigEndian.PutUint16(buf[2:4], mouseX) // mouse H
+	binary.BigEndian.PutUint16(buf[4:6], mouseY) // mouse V
+	binary.BigEndian.PutUint16(buf[6:8], 0)      // flags
 	binary.BigEndian.PutUint32(buf[8:12], uint32(ackFrame))
 	binary.BigEndian.PutUint32(buf[12:16], uint32(resendFrame))
 	binary.BigEndian.PutUint32(buf[16:20], commandNum)
