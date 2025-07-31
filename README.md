@@ -22,3 +22,7 @@ go run ./go_client -name "Agratis One" -pass demo
 
 The default server address is `server.deltatao.com:5010` and can be overridden
 with the `-host` flag.
+
+Pass `-dump` to log raw network traffic while debugging. When the server
+responds with `-30972` or `-30973`, the Go client will now fetch updated data
+files from the provided URL and reconnect automatically.

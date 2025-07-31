@@ -1,16 +1,24 @@
 package main
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"crypto/aes"
 	"crypto/md5"
 	"encoding/binary"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
+	"os/signal"
+	"path/filepath"
+	"strings"
+	"syscall"
 )
 
 func simpleEncrypt(data []byte) {
@@ -25,9 +33,34 @@ func simpleEncrypt(data []byte) {
 	}
 }
 
+func hexDump(prefix string, data []byte) {
+	if !dumpTraffic {
+		return
+	}
+	fmt.Printf("%s %d bytes\n", prefix, len(data))
+	fmt.Println(hex.Dump(data))
+}
+
 const (
 	kTypeVersion = 0x56657273 // 'Vers'
 )
+
+var errorNames = map[int16]string{
+	-30972: "kDownloadNewVersionLive",
+	-30973: "kDownloadNewVersionTest",
+	-30999: "kBadCharName",
+	-30998: "kBadCharPass",
+	-30996: "kIncompatibleVersions",
+	-30992: "kShuttingDown",
+	-30991: "kGameNotOpen",
+	-30988: "kBadAcctName",
+	-30987: "kBadAcctPass",
+	-30985: "kNoFreeSlot",
+	-30984: "kBadAcctChar",
+	-30981: "kCharOnline",
+}
+
+var dumpTraffic bool
 
 // readKeyFileVersion reads the kTypeVersion record from a DTS key file.
 func readKeyFileVersion(path string) (uint32, error) {
@@ -98,6 +131,7 @@ func sendMessage(conn net.Conn, msg []byte) error {
 		return err
 	}
 	_, err := conn.Write(msg)
+	hexDump("send", msg)
 	return err
 }
 
@@ -111,7 +145,126 @@ func readMessage(conn net.Conn) ([]byte, error) {
 	if _, err := io.ReadFull(conn, buf); err != nil {
 		return nil, err
 	}
+	hexDump("recv", buf)
 	return buf, nil
+}
+
+func downloadGZ(url, dest string) error {
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("GET %s: %s", url, resp.Status)
+	}
+	gz, err := gzip.NewReader(resp.Body)
+	if err != nil {
+		return err
+	}
+	defer gz.Close()
+	tmp := dest + ".tmp"
+	f, err := os.Create(tmp)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(f, gz); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp, dest)
+}
+
+func downloadTGZ(url, destDir string) error {
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("GET %s: %s", url, resp.Status)
+	}
+	gz, err := gzip.NewReader(resp.Body)
+	if err != nil {
+		return err
+	}
+	defer gz.Close()
+	tr := tar.NewReader(gz)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		path := filepath.Join(destDir, hdr.Name)
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(path, 0755); err != nil {
+				return err
+			}
+		case tar.TypeReg:
+			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+				return err
+			}
+			f, err := os.Create(path)
+			if err != nil {
+				return err
+			}
+			if _, err := io.Copy(f, tr); err != nil {
+				f.Close()
+				return err
+			}
+			if err := f.Close(); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func autoUpdate(resp []byte) error {
+	if len(resp) < 16 {
+		return fmt.Errorf("short response for update")
+	}
+	base := string(resp[16:])
+	if i := strings.IndexByte(base, 0); i >= 0 {
+		base = base[:i]
+	}
+	base = strings.TrimRight(base, "/")
+	clientVer := binary.BigEndian.Uint32(resp[4:8])
+	imgVer := binary.BigEndian.Uint32(resp[8:12])
+	sndVer := binary.BigEndian.Uint32(resp[12:16])
+	maj := clientVer >> 8
+	min := clientVer & 0xFF
+	var clientURL string
+	if min == 0 {
+		clientURL = fmt.Sprintf("%s/mac/ClanLord.%d.tgz", base, maj)
+	} else {
+		clientURL = fmt.Sprintf("%s/mac/ClanLord.%d.%d.tgz", base, maj, min)
+	}
+	imgURL := fmt.Sprintf("%s/data/CL_Images.%d.gz", base, imgVer>>8)
+	sndURL := fmt.Sprintf("%s/data/CL_Sounds.%d.gz", base, sndVer>>8)
+	if err := os.MkdirAll("updates/client", 0755); err != nil {
+		return err
+	}
+	fmt.Println("downloading", clientURL)
+	if err := downloadTGZ(clientURL, "updates/client"); err != nil {
+		return err
+	}
+	fmt.Println("downloading", imgURL)
+	if err := downloadGZ(imgURL, "CL_Images"); err != nil {
+		return err
+	}
+	fmt.Println("downloading", sndURL)
+	if err := downloadGZ(sndURL, "CL_Sounds"); err != nil {
+		return err
+	}
+	return nil
 }
 
 func requestCharList(conn net.Conn, account, password string, challenge []byte, clientVersion, imagesVersion, soundsVersion uint32) ([]string, error) {
@@ -178,103 +331,162 @@ func main() {
 	name := flag.String("name", "demo", "character name")
 	pass := flag.String("pass", "demo", "character password")
 	listDemo := flag.Bool("list-demo", false, "list available demo characters")
+	flag.BoolVar(&dumpTraffic, "dump", false, "dump raw network traffic")
 	flag.Parse()
 
 	const clientVersion = 346368
-	imagesVersion, err := readKeyFileVersion("CL_Images")
-	if err != nil {
-		log.Printf("warning: %v", err)
-		imagesVersion = clientVersion
-	}
-	soundsVersion, err := readKeyFileVersion("CL_Sounds")
-	if err != nil {
-		log.Printf("warning: %v", err)
-		soundsVersion = clientVersion
-	}
-
-	tcpConn, err := net.Dial("tcp", *host)
-	if err != nil {
-		log.Fatalf("tcp connect: %v", err)
-	}
-	defer tcpConn.Close()
-
-	udpConn, err := net.Dial("udp", *host)
-	if err != nil {
-		log.Fatalf("udp connect: %v", err)
-	}
-	defer udpConn.Close()
-
-	var idBuf [4]byte
-	if _, err := io.ReadFull(tcpConn, idBuf[:]); err != nil {
-		log.Fatalf("read id: %v", err)
-	}
-
-	handshake := append([]byte{0xff, 0xff}, idBuf[:]...)
-	if _, err := udpConn.Write(handshake); err != nil {
-		log.Fatalf("send handshake: %v", err)
-	}
-
-	var confirm [2]byte
-	if _, err := io.ReadFull(tcpConn, confirm[:]); err != nil {
-		log.Fatalf("confirm handshake: %v", err)
-	}
-
-	// wait for challenge message
-	msg, err := readMessage(tcpConn)
-	if err != nil {
-		log.Fatalf("read challenge: %v", err)
-	}
-	if len(msg) < 16 {
-		log.Fatalf("short challenge message")
-	}
-	tag := binary.BigEndian.Uint16(msg[:2])
-	const kMsgChallenge = 18
-	if tag != kMsgChallenge {
-		log.Fatalf("unexpected msg tag %d", tag)
-	}
-	challenge := msg[8 : 8+16] // skip header fields
-
-	if *listDemo {
-		names, err := requestCharList(tcpConn, "demo", "demo", challenge, clientVersion, imagesVersion, soundsVersion)
+	for {
+		imagesVersion, err := readKeyFileVersion("CL_Images")
 		if err != nil {
-			log.Fatalf("list demo: %v", err)
+			log.Printf("warning: %v", err)
+			imagesVersion = clientVersion
 		}
-		for _, n := range names {
-			fmt.Println(n)
+		soundsVersion, err := readKeyFileVersion("CL_Sounds")
+		if err != nil {
+			log.Printf("warning: %v", err)
+			soundsVersion = clientVersion
 		}
-		return
-	}
 
-	answer, err := answerChallenge(*pass, challenge)
-	if err != nil {
-		log.Fatalf("hash: %v", err)
-	}
+		tcpConn, err := net.Dial("tcp", *host)
+		if err != nil {
+			log.Fatalf("tcp connect: %v", err)
+		}
+		udpConn, err := net.Dial("udp", *host)
+		if err != nil {
+			log.Fatalf("udp connect: %v", err)
+		}
 
-	const kMsgLogOn = 13
-	buf := make([]byte, 16+len(*name)+1+len(answer))
-	binary.BigEndian.PutUint16(buf[0:2], kMsgLogOn)
-	binary.BigEndian.PutUint16(buf[2:4], 0)
-	binary.BigEndian.PutUint32(buf[4:8], clientVersion)
-	binary.BigEndian.PutUint32(buf[8:12], imagesVersion)
-	binary.BigEndian.PutUint32(buf[12:16], soundsVersion)
-	copy(buf[16:], []byte(*name))
-	buf[16+len(*name)] = 0
-	copy(buf[17+len(*name):], answer)
-	simpleEncrypt(buf[16:])
+		var idBuf [4]byte
+		if _, err := io.ReadFull(tcpConn, idBuf[:]); err != nil {
+			log.Fatalf("read id: %v", err)
+		}
 
-	if err := sendMessage(tcpConn, buf); err != nil {
-		log.Fatalf("send login: %v", err)
-	}
+		handshake := append([]byte{0xff, 0xff}, idBuf[:]...)
+		if _, err := udpConn.Write(handshake); err != nil {
+			log.Fatalf("send handshake: %v", err)
+		}
 
-	resp, err := readMessage(tcpConn)
-	if err != nil {
-		log.Fatalf("read login response: %v", err)
+		var confirm [2]byte
+		if _, err := io.ReadFull(tcpConn, confirm[:]); err != nil {
+			log.Fatalf("confirm handshake: %v", err)
+		}
+		fmt.Println("connected to", *host)
+
+		msg, err := readMessage(tcpConn)
+		if err != nil {
+			log.Fatalf("read challenge: %v", err)
+		}
+		if len(msg) < 16 {
+			log.Fatalf("short challenge message")
+		}
+		tag := binary.BigEndian.Uint16(msg[:2])
+		const kMsgChallenge = 18
+		if tag != kMsgChallenge {
+			log.Fatalf("unexpected msg tag %d", tag)
+		}
+		challenge := msg[8 : 8+16]
+
+		if *listDemo {
+			names, err := requestCharList(tcpConn, "demo", "demo", challenge, clientVersion, imagesVersion, soundsVersion)
+			if err != nil {
+				log.Fatalf("list demo: %v", err)
+			}
+			for _, n := range names {
+				fmt.Println(n)
+			}
+			return
+		}
+
+		answer, err := answerChallenge(*pass, challenge)
+		if err != nil {
+			log.Fatalf("hash: %v", err)
+		}
+
+		const kMsgLogOn = 13
+		buf := make([]byte, 16+len(*name)+1+len(answer))
+		binary.BigEndian.PutUint16(buf[0:2], kMsgLogOn)
+		binary.BigEndian.PutUint16(buf[2:4], 0)
+		binary.BigEndian.PutUint32(buf[4:8], clientVersion)
+		binary.BigEndian.PutUint32(buf[8:12], imagesVersion)
+		binary.BigEndian.PutUint32(buf[12:16], soundsVersion)
+		copy(buf[16:], []byte(*name))
+		buf[16+len(*name)] = 0
+		copy(buf[17+len(*name):], answer)
+		simpleEncrypt(buf[16:])
+
+		if err := sendMessage(tcpConn, buf); err != nil {
+			log.Fatalf("send login: %v", err)
+		}
+
+		resp, err := readMessage(tcpConn)
+		if err != nil {
+			log.Fatalf("read login response: %v", err)
+		}
+		resTag := binary.BigEndian.Uint16(resp[:2])
+		const kMsgLogOnResp = 13
+		if resTag != kMsgLogOnResp {
+			log.Fatalf("unexpected response tag %d", resTag)
+		}
+		result := int16(binary.BigEndian.Uint16(resp[2:4]))
+		if name, ok := errorNames[result]; ok && result != 0 {
+			fmt.Printf("login result: %d (%s)\n", result, name)
+		} else {
+			fmt.Printf("login result: %d\n", result)
+		}
+
+		tcpConn.Close()
+		udpConn.Close()
+
+		if result == -30972 || result == -30973 {
+			fmt.Println("server requested update, downloading...")
+			if err := autoUpdate(resp); err != nil {
+				log.Fatalf("auto update: %v", err)
+			}
+			fmt.Println("update complete, reconnecting...")
+			continue
+		}
+
+		if result == 0 {
+			tcpConn2, err := net.Dial("tcp", *host)
+			if err != nil {
+				log.Fatalf("tcp reconnect: %v", err)
+			}
+			udpConn2, err := net.Dial("udp", *host)
+			if err != nil {
+				log.Fatalf("udp reconnect: %v", err)
+			}
+
+			if _, err := io.ReadFull(tcpConn2, idBuf[:]); err != nil {
+				log.Fatalf("read id: %v", err)
+			}
+			handshake := append([]byte{0xff, 0xff}, idBuf[:]...)
+			if _, err := udpConn2.Write(handshake); err != nil {
+				log.Fatalf("send handshake: %v", err)
+			}
+			if _, err := io.ReadFull(tcpConn2, confirm[:]); err != nil {
+				log.Fatalf("confirm handshake: %v", err)
+			}
+
+			fmt.Println("login succeeded, reading messages (Ctrl-C to quit)...")
+			sig := make(chan os.Signal, 1)
+			signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+		loop:
+			for {
+				select {
+				case <-sig:
+					break loop
+				default:
+					m, err := readMessage(tcpConn2)
+					if err != nil {
+						fmt.Printf("read error: %v\n", err)
+						break loop
+					}
+					fmt.Printf("msg tag %d len %d\n", binary.BigEndian.Uint16(m[:2]), len(m))
+				}
+			}
+			tcpConn2.Close()
+			udpConn2.Close()
+		}
+		break
 	}
-	resTag := binary.BigEndian.Uint16(resp[:2])
-	const kMsgLogOnResp = 13
-	if resTag != kMsgLogOnResp {
-		log.Fatalf("unexpected response tag %d", resTag)
-	}
-	result := int16(binary.BigEndian.Uint16(resp[2:4]))
-	fmt.Printf("login result: %d\n", result)
 }
