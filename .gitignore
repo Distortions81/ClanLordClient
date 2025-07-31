@@ -1,8 +1,3 @@
 
-.DS_Store
-client/.DS_Store
-ClanLord.exe
-data/CL_Images
-data/CL_Sounds
-*.dll
-*.manifest
+*CL_Images
+*CL_Sounds
