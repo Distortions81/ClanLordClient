@@ -564,13 +564,23 @@ func main() {
 	for {
 		imagesVersion, err := readKeyFileVersion("CL_Images")
 		if err != nil {
-			log.Printf("warning: %v", err)
-			imagesVersion = clientVersion
+			if os.IsNotExist(err) {
+				log.Printf("CL_Images missing; will fetch from server")
+				imagesVersion = 0
+			} else {
+				log.Printf("warning: %v", err)
+				imagesVersion = clientVersion
+			}
 		}
 		soundsVersion, err := readKeyFileVersion("CL_Sounds")
 		if err != nil {
-			log.Printf("warning: %v", err)
-			soundsVersion = clientVersion
+			if os.IsNotExist(err) {
+				log.Printf("CL_Sounds missing; will fetch from server")
+				soundsVersion = 0
+			} else {
+				log.Printf("warning: %v", err)
+				soundsVersion = clientVersion
+			}
 		}
 
 		tcpConn, err := net.Dial("tcp", *host)
