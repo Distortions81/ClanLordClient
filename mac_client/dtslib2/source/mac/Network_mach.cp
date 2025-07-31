@@ -95,7 +95,8 @@ static DTSError		DTSNetSetOption( DTSEndPoint ep, int optLevel, int optName, int
 */
 
 #if DEBUG_VERSION_NETWORK
-static FILE *	dbgStream;
+static FILE *   dbgStream;
+static bool     gNetDebugEnabled = false;
 #endif	// DEBUG_VERSION_NETWORK
 
 
@@ -111,7 +112,7 @@ Lg( const char * fmt, ... )
 {
 	va_list va;
 	va_start( va, fmt );
-	if ( dbgStream )
+	if ( gNetDebugEnabled && dbgStream )
 		{
 		if ( (true) )	// show timestamp?
 			{
@@ -218,27 +219,34 @@ DTSInitNetwork()
 	gUniqueID = id;
 	
 #if DEBUG_VERSION_NETWORK
-  	
-	// Finder launches us with current directory set to '/', which is generally not writable.
-	// In that case, let's put the net-debug log file somewhere else -- e.g. in /tmp.
-	char wd[ PATH_MAX + 1 ];
-	getcwd( wd, sizeof wd );
-//	fprintf( stderr, "CWD: %s\n", wd );
-	
-	dbgStream = fopen( wd[1] ? NET_LOG_NAME : "/tmp/" NET_LOG_NAME, "wa" );
-	if ( not dbgStream )
-		{
-		id = errno;
-		fprintf( stderr, "Failed to open dbgStream: %s.\n", strerror( id ) );
-		return -id;
-		}
-	
-	// line-buffer it?
-	if ( (true) )
-		setvbuf( dbgStream, nullptr, _IOLBF, 0 );
-	
-	Lg( "InitNetwork\n" );
-#endif	// DEBUG_VERSION_NETWORK
+
+        const char * env = getenv("CL_NET_DEBUG");
+        if ( env && *env )
+                gNetDebugEnabled = true;
+
+        if ( gNetDebugEnabled )
+                {
+                // Finder launches us with current directory set to '/', which is generally not writable.
+                // In that case, let's put the net-debug log file somewhere else -- e.g. in /tmp.
+                char wd[ PATH_MAX + 1 ];
+                getcwd( wd, sizeof wd );
+//              fprintf( stderr, "CWD: %s\n", wd );
+
+                const char * logfile = *env ? env : (wd[1] ? NET_LOG_NAME : "/tmp/" NET_LOG_NAME);
+                dbgStream = fopen( logfile, "wa" );
+                if ( not dbgStream )
+                        {
+                        id = errno;
+                        fprintf( stderr, "Failed to open dbgStream: %s.\n", strerror( id ) );
+                        return -id;
+                        }
+
+                if ( (true) )
+                        setvbuf( dbgStream, nullptr, _IOLBF, 0 );
+
+                Lg( "InitNetwork\n" );
+                }
+#endif  // DEBUG_VERSION_NETWORK
 	
 #if CLIENT_SUPPORT
 	gNetworking = true;
@@ -258,10 +266,11 @@ DTSExitNetwork()
 {
 #if DEBUG_VERSION_NETWORK
 	Lg( "ExitNetwork\n" );
-	if ( dbgStream )
+	if ( gNetDebugEnabled && dbgStream )
 		{
 		fclose( dbgStream );
 		dbgStream = nullptr;
+                gNetDebugEnabled = false;
 		}
 #endif	// DEBUG_VERSION_NETWORK
 	
