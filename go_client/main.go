@@ -156,6 +156,40 @@ func answerChallenge(password string, challenge []byte) ([]byte, error) {
 	return encoded, nil
 }
 
+func sendIdentifiers(conn net.Conn, clientVersion, imagesVersion, soundsVersion uint32) error {
+	const kMsgIdentifiers = 19
+	uname := os.Getenv("USER")
+	if uname == "" {
+		uname = "unknown"
+	}
+	hname, _ := os.Hostname()
+	if hname == "" {
+		hname = "unknown"
+	}
+	boot := "/"
+
+	data := make([]byte, 0, 8+6+len(uname)+1+len(hname)+1+len(boot)+1+1)
+	data = append(data, make([]byte, 8)...) // magic file info placeholder
+	data = append(data, make([]byte, 6)...) // ethernet address placeholder
+	data = append(data, []byte(uname)...)
+	data = append(data, 0)
+	data = append(data, []byte(hname)...)
+	data = append(data, 0)
+	data = append(data, []byte(boot)...)
+	data = append(data, 0)
+	data = append(data, byte(0)) // language
+
+	buf := make([]byte, 16+len(data))
+	binary.BigEndian.PutUint16(buf[0:2], kMsgIdentifiers)
+	binary.BigEndian.PutUint16(buf[2:4], 0)
+	binary.BigEndian.PutUint32(buf[4:8], clientVersion)
+	binary.BigEndian.PutUint32(buf[8:12], imagesVersion)
+	binary.BigEndian.PutUint32(buf[12:16], soundsVersion)
+	copy(buf[16:], data)
+	simpleEncrypt(buf[16:])
+	return sendMessage(conn, buf)
+}
+
 func sendMessage(conn net.Conn, msg []byte) error {
 	var size [2]byte
 	binary.BigEndian.PutUint16(size[:], uint16(len(msg)))
@@ -407,6 +441,9 @@ func main() {
 		if _, err := io.ReadFull(tcpConn, confirm[:]); err != nil {
 			log.Fatalf("confirm handshake: %v", err)
 		}
+		if err := sendIdentifiers(tcpConn, clientVersion, imagesVersion, soundsVersion); err != nil {
+			log.Fatalf("send identifiers: %v", err)
+		}
 		fmt.Println("connected to", *host)
 
 		msg, err := readMessage(tcpConn)
@@ -502,6 +539,9 @@ func main() {
 			}
 			if _, err := io.ReadFull(tcpConn2, confirm[:]); err != nil {
 				log.Fatalf("confirm handshake: %v", err)
+			}
+			if err := sendIdentifiers(tcpConn2, clientVersion, imagesVersion, soundsVersion); err != nil {
+				log.Fatalf("send identifiers: %v", err)
 			}
 
 			fmt.Println("login succeeded, reading messages (Ctrl-C to quit)...")
