@@ -268,26 +268,27 @@ func autoUpdate(resp []byte) error {
 		base = base[:i]
 	}
 	base = strings.TrimRight(base, "/")
-	clientVer := binary.BigEndian.Uint32(resp[4:8])
+	//clientVer := binary.BigEndian.Uint32(resp[4:8])
 	imgVer := binary.BigEndian.Uint32(resp[8:12])
 	sndVer := binary.BigEndian.Uint32(resp[12:16])
-	maj := clientVer >> 8
-	min := clientVer & 0xFF
-	var clientURL string
-	if min == 0 {
-		clientURL = fmt.Sprintf("%s/mac/ClanLord.%d.tgz", base, maj)
-	} else {
-		clientURL = fmt.Sprintf("%s/mac/ClanLord.%d.%d.tgz", base, maj, min)
-	}
+	/*
+	*maj := clientVer >> 8
+	*min := clientVer & 0xFF
+	*} else {
+	*	clientURL = fmt.Sprintf("%s/mac/ClanLord.%d.%d.tgz", base, maj, min)
+	*}
+	 */
 	imgURL := fmt.Sprintf("%s/data/CL_Images.%d.gz", base, imgVer>>8)
 	sndURL := fmt.Sprintf("%s/data/CL_Sounds.%d.gz", base, sndVer>>8)
 	if err := os.MkdirAll("updates/client", 0755); err != nil {
 		return err
 	}
-	fmt.Println("downloading", clientURL)
-	if err := downloadTGZ(clientURL, "updates/client"); err != nil {
-		return err
-	}
+	/*
+	*fmt.Println("downloading", clientURL)
+	*if err := downloadTGZ(clientURL, "updates/client"); err != nil {
+	*	return err
+	*}
+	 */
 	fmt.Println("downloading", imgURL)
 	if err := downloadGZ(imgURL, "CL_Images"); err != nil {
 		return err
