@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/tar"
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"crypto/aes"
@@ -17,6 +18,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 )
@@ -58,6 +61,35 @@ var errorNames = map[int16]string{
 	-30985: "kNoFreeSlot",
 	-30984: "kBadAcctChar",
 	-30981: "kCharOnline",
+}
+
+// loadAdditionalErrorNames parses Public_cl.h to populate errorNames.
+func loadAdditionalErrorNames() {
+	path := filepath.Join("..", "mac_client", "client", "public", "Public_cl.h")
+	f, err := os.Open(path)
+	if err != nil {
+		// ignore errors; table will remain partial
+		return
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	re := regexp.MustCompile(`\s*(k\w+)\s*=\s*(-?\d+),`)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if m := re.FindStringSubmatch(line); m != nil {
+			val, err := strconv.Atoi(m[2])
+			if err == nil {
+				if _, ok := errorNames[int16(val)]; !ok {
+					errorNames[int16(val)] = m[1]
+				}
+			}
+		}
+	}
+}
+
+func init() {
+	loadAdditionalErrorNames()
 }
 
 var dumpTraffic bool
