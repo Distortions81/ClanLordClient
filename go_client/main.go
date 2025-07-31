@@ -334,7 +334,11 @@ func main() {
 	flag.BoolVar(&dumpTraffic, "dump", false, "dump raw network traffic")
 	flag.Parse()
 
-	const clientVersion = 346368
+	// clientVersion corresponds to kFullVersionNumber from
+	// VersionNumber_cl.h in the C client. The server currently
+	// expects version 1440 with sub-version 0, so send that
+	//  number shifted left by 8 bits.
+	const clientVersion = 368640
 	for {
 		imagesVersion, err := readKeyFileVersion("CL_Images")
 		if err != nil {
