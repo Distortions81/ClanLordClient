@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/aes"
 	"crypto/md5"
 	"encoding/binary"
@@ -13,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -22,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 func simpleEncrypt(data []byte) {
@@ -93,6 +96,20 @@ func init() {
 }
 
 var dumpTraffic bool
+
+// bubble speech types from Public_cl.h
+const (
+	kBubbleNormal  = 0
+	kBubbleWhisper = 1
+	kBubbleYell    = 2
+	kBubbleThought = 3
+
+	kBubbleTypeMask  = 0x3F
+	kBubbleNotCommon = 0x40
+	kBubbleFar       = 0x80
+)
+
+const beppChar = "\302"
 
 // readKeyFileVersion reads the kTypeVersion record from a DTS key file.
 func readKeyFileVersion(path string) (uint32, error) {
@@ -334,6 +351,83 @@ func autoUpdate(resp []byte) error {
 	return nil
 }
 
+func decodeBEPP(data []byte) string {
+	if len(data) < 3 || data[0] != 0xC2 {
+		return ""
+	}
+	prefix := string(data[1:3])
+	text := strings.TrimRight(string(data[3:]), "\x00")
+	switch prefix {
+	case "th":
+		return "think: " + text
+	case "in":
+		return "info: " + text
+	case "sh":
+		return "share: " + text
+	default:
+		return ""
+	}
+}
+
+func decodeBubble(data []byte) string {
+	if len(data) < 2 {
+		return ""
+	}
+	typ := int(data[1])
+	p := 2
+	if typ&kBubbleNotCommon != 0 {
+		if len(data) < p+1 {
+			return ""
+		}
+		p++
+	}
+	if typ&kBubbleFar != 0 {
+		if len(data) < p+4 {
+			return ""
+		}
+		p += 4
+	}
+	if len(data) <= p {
+		return ""
+	}
+	msgData := data[p:]
+	if i := bytes.IndexByte(msgData, 0); i >= 0 {
+		msgData = msgData[:i]
+	}
+	text := string(msgData)
+	switch typ & kBubbleTypeMask {
+	case kBubbleNormal:
+		return "say: " + text
+	case kBubbleWhisper:
+		return "whisper: " + text
+	case kBubbleYell:
+		return "yell: " + text
+	case kBubbleThought:
+		return "think: " + text
+	default:
+		return text
+	}
+}
+
+func decodeMessage(m []byte) string {
+	if len(m) <= 16 {
+		return ""
+	}
+	data := append([]byte(nil), m[16:]...)
+	simpleEncrypt(data)
+	if s := decodeBEPP(data); s != "" {
+		return s
+	}
+	if s := decodeBubble(data); s != "" {
+		return s
+	}
+	str := strings.TrimRight(string(data), "\x00")
+	if str != "" {
+		return str
+	}
+	return ""
+}
+
 func requestCharList(conn net.Conn, account, password string, challenge []byte, clientVersion, imagesVersion, soundsVersion uint32) ([]string, error) {
 	answer, err := answerChallenge(password, challenge)
 	if err != nil {
@@ -400,6 +494,8 @@ func main() {
 	listDemo := flag.Bool("list-demo", false, "list available demo characters")
 	flag.BoolVar(&dumpTraffic, "dump", false, "dump raw network traffic")
 	flag.Parse()
+
+	autoDemo := *name == "demo" && *pass == "demo" && !*listDemo
 
 	// clientVersion corresponds to kFullVersionNumber from
 	// VersionNumber_cl.h in the C client. The server currently
@@ -469,6 +565,19 @@ func main() {
 				fmt.Println(n)
 			}
 			return
+		}
+
+		if autoDemo {
+			names, err := requestCharList(tcpConn, "demo", "demo", challenge, clientVersion, imagesVersion, soundsVersion)
+			if err != nil {
+				log.Fatalf("list demo: %v", err)
+			}
+			if len(names) == 0 {
+				log.Fatalf("no demo characters available")
+			}
+			rand.Seed(time.Now().UnixNano())
+			*name = names[rand.Intn(len(names))]
+			fmt.Println("selected demo character:", *name)
 		}
 
 		answer, err := answerChallenge(*pass, challenge)
@@ -545,12 +654,12 @@ func main() {
 			}
 
 			fmt.Println("login succeeded, reading messages (Ctrl-C to quit)...")
-			sig := make(chan os.Signal, 1)
-			signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
 		loop:
 			for {
 				select {
-				case <-sig:
+				case <-ctx.Done():
 					break loop
 				default:
 					m, err := readMessage(tcpConn2)
@@ -558,7 +667,11 @@ func main() {
 						fmt.Printf("read error: %v\n", err)
 						break loop
 					}
-					fmt.Printf("msg tag %d len %d\n", binary.BigEndian.Uint16(m[:2]), len(m))
+					if txt := decodeMessage(m); txt != "" {
+						fmt.Println(txt)
+					} else {
+						fmt.Printf("msg tag %d len %d\n", binary.BigEndian.Uint16(m[:2]), len(m))
+					}
 				}
 			}
 			tcpConn2.Close()
