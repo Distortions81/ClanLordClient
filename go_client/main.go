@@ -96,6 +96,9 @@ func init() {
 }
 
 var dumpTraffic bool
+var ackFrame int32
+var resendFrame int32
+var commandNum uint32 = 1
 
 // bubble speech types from Public_cl.h
 const (
@@ -249,7 +252,14 @@ func sendPlayerInput(conn net.Conn) error {
 	const kMsgPlayerInput = 3
 	buf := make([]byte, 20+1)
 	binary.BigEndian.PutUint16(buf[0:2], kMsgPlayerInput)
+	binary.BigEndian.PutUint16(buf[2:4], 0) // mouse H
+	binary.BigEndian.PutUint16(buf[4:6], 0) // mouse V
+	binary.BigEndian.PutUint16(buf[6:8], 0) // flags
+	binary.BigEndian.PutUint32(buf[8:12], uint32(ackFrame))
+	binary.BigEndian.PutUint32(buf[12:16], uint32(resendFrame))
+	binary.BigEndian.PutUint32(buf[16:20], commandNum)
 	buf[20] = 0
+	commandNum++
 	return sendUDPMessage(conn, buf)
 }
 
@@ -443,6 +453,19 @@ func decodeBubble(data []byte) string {
 	default:
 		return text
 	}
+}
+
+func handleDrawState(m []byte) {
+	if len(m) < 25 { // 16 byte header + 9 bytes minimum
+		return
+	}
+	data := append([]byte(nil), m[16:]...)
+	simpleEncrypt(data)
+	if len(data) < 9 {
+		return
+	}
+	ackFrame = int32(binary.BigEndian.Uint32(data[1:5]))
+	resendFrame = int32(binary.BigEndian.Uint32(data[5:9]))
 }
 
 func decodeMessage(m []byte) string {
@@ -731,10 +754,14 @@ func main() {
 						fmt.Printf("udp read error: %v\n", err)
 						return
 					}
+					tag := binary.BigEndian.Uint16(m[:2])
+					if tag == 2 { // kMsgDrawState
+						handleDrawState(m)
+					}
 					if txt := decodeMessage(m); txt != "" {
 						fmt.Println(txt)
 					} else {
-						fmt.Printf("udp msg tag %d len %d\n", binary.BigEndian.Uint16(m[:2]), len(m))
+						fmt.Printf("udp msg tag %d len %d\n", tag, len(m))
 					}
 				}
 			}()
@@ -758,10 +785,14 @@ func main() {
 					fmt.Printf("read error: %v\n", err)
 					break
 				}
+				tag := binary.BigEndian.Uint16(m[:2])
+				if tag == 2 { // kMsgDrawState
+					handleDrawState(m)
+				}
 				if txt := decodeMessage(m); txt != "" {
 					fmt.Println(txt)
 				} else {
-					fmt.Printf("msg tag %d len %d\n", binary.BigEndian.Uint16(m[:2]), len(m))
+					fmt.Printf("msg tag %d len %d\n", tag, len(m))
 				}
 				select {
 				case <-ctx.Done():
