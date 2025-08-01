@@ -23,6 +23,7 @@ type dataLocation struct {
 	imageID    uint32
 	colorID    uint32
 	flags      uint32
+	plane      int16
 	numFrames  uint16
 }
 
@@ -138,6 +139,7 @@ func Load(path string) (*CLImages, error) {
 		if err := binary.Read(r, binary.BigEndian, &plane); err != nil {
 			return nil, err
 		}
+		ref.plane = plane
 		if err := binary.Read(r, binary.BigEndian, &ref.numFrames); err != nil {
 			return nil, err
 		}
@@ -314,4 +316,13 @@ func (c *CLImages) NumFrames(id uint32) int {
 		return int(ref.numFrames)
 	}
 	return 1
+}
+
+// Plane returns the drawing plane for the given image ID. If unknown, it
+// returns 0.
+func (c *CLImages) Plane(id uint32) int {
+	if ref := c.idrefs[id]; ref != nil {
+		return int(ref.plane)
+	}
+	return 0
 }

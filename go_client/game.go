@@ -69,7 +69,18 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 	stateMu.Unlock()
 
-	sort.Slice(pics, func(i, j int) bool { return pics[i].V < pics[j].V })
+	sort.Slice(pics, func(i, j int) bool {
+		pi := 0
+		pj := 0
+		if clImages != nil {
+			pi = clImages.Plane(uint32(pics[i].PictID))
+			pj = clImages.Plane(uint32(pics[j].PictID))
+		}
+		if pi == pj {
+			return pics[i].V < pics[j].V
+		}
+		return pi < pj
+	})
 
 	dead := make([]frameMobile, 0, len(mobiles))
 	live := make([]frameMobile, 0, len(mobiles))
@@ -79,7 +90,6 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 		live = append(live, m)
 	}
-	sort.Slice(live, func(i, j int) bool { return live[i].V < live[j].V })
 
 	type textItem struct {
 		x, y int
@@ -121,17 +131,32 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		drawMobile(m)
 	}
 
-	i, j := 0, 0
-	for i < len(live) || j < len(pics) {
-		if j >= len(pics) || (i < len(live) && live[i].V < pics[j].V) {
-			if live[i].State != poseDead {
-				drawMobile(live[i])
-			}
-			i++
-		} else {
-			drawPicture(pics[j])
-			j++
+	split := 0
+	for split < len(pics) {
+		plane := 0
+		if clImages != nil {
+			plane = clImages.Plane(uint32(pics[split].PictID))
 		}
+		if plane >= 0 {
+			break
+		}
+		split++
+	}
+
+	for _, p := range pics[:split] {
+		drawPicture(p)
+	}
+
+	sort.Slice(live, func(i, j int) bool { return live[i].V < live[j].V })
+
+	for _, m := range live {
+		if m.State != poseDead {
+			drawMobile(m)
+		}
+	}
+
+	for _, p := range pics[split:] {
+		drawPicture(p)
 	}
 
 	/*
