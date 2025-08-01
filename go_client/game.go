@@ -16,7 +16,7 @@ import (
 )
 
 const gameAreaSizeX, gameAreaSizeY = 547, 540
-const offX, offY = (gameAreaSizeX / 3) - 8, (gameAreaSizeX / 3) - 8
+const fieldCenterX, fieldCenterY = gameAreaSizeX / 2, gameAreaSizeY / 2
 
 var mouseX, mouseY uint16
 
@@ -88,15 +88,16 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	texts := []textItem{}
 
 	drawMobile := func(m frameMobile) {
-		x := int(m.H) + offX
-		y := int(m.V) + offY
+		x := int(m.H) + fieldCenterX
+		y := int(m.V) + fieldCenterY
 		var img *ebiten.Image
 		if d, ok := descMap[m.Index]; ok {
 			img = loadImage(d.PictID)
 		}
 		if img != nil {
+			size := img.Bounds().Dx() / 16
 			op := &ebiten.DrawImageOptions{}
-			op.GeoM.Translate(float64(x), float64(y))
+			op.GeoM.Translate(float64(x-size/2), float64(y-size/2))
 			screen.DrawImage(img, op)
 		} else {
 			ebitenutil.DrawRect(screen, float64(x)-3, float64(y)-3, 6, 6, color.RGBA{0xff, 0, 0, 0xff})
@@ -105,11 +106,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	drawPicture := func(p framePicture) {
-		x := int(p.H) + offX
-		y := int(p.V) + offY
+		x := int(p.H) + fieldCenterX
+		y := int(p.V) + fieldCenterY
 		if img := loadImage(p.PictID); img != nil {
 			op := &ebiten.DrawImageOptions{}
-			op.GeoM.Translate(float64(x), float64(y))
+			w, h := img.Bounds().Dx(), img.Bounds().Dy()
+			op.GeoM.Translate(float64(x-w/2), float64(y-h/2))
 			screen.DrawImage(img, op)
 		} else {
 			ebitenutil.DrawRect(screen, float64(x)-2, float64(y)-2, 4, 4, color.RGBA{0, 0, 0xff, 0xff})
