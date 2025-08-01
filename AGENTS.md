@@ -17,6 +17,12 @@ This repo includes a minimal Go client under `go_client/`. To build or run the G
    go mod download
    ```
 
+For convenience the `scripts` directory contains small helper scripts:
+`scripts/build_go_client.sh` fetches dependencies, formats the sources and
+compiles the client. `scripts/run_go_client.sh` launches the program.
+
+Both scripts expect to be executed from the repository root.
+
 ## Build steps
 1. Navigate to the `go_client` directory if not already there:
    ```bash
@@ -27,10 +33,13 @@ This repo includes a minimal Go client under `go_client/`. To build or run the G
    go build
    ```
    This produces the executable `go_client` in the current directory.
+   You can also run `../scripts/build_go_client.sh` from the repo root which
+   runs `go mod download` and `go build ./...` in one step.
 3. You can also run the program directly with:
    ```bash
    go run .
    ```
+   Alternatively run `../scripts/run_go_client.sh` from the repo root.
 
 The module path is `go_client` and the main package is located in this directory.
 

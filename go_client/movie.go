@@ -75,19 +75,18 @@ func parseMovie(path string) ([][]byte, error) {
 				v := int16(binary.BigEndian.Uint32(data[pos+8 : pos+12]))
 				colors := uint8(binary.BigEndian.Uint32(data[pos+12 : pos+16]))
 				pos += 16
-				if pos+168 > len(data) {
+				if pos+156 > len(data) {
 					pos = len(data)
 					break
 				}
-				// descriptor structs in movie files include
-				// AUTO_HIDENAME fields so the minimum size is
-				// 176 bytes (offset of descBubbleText)
-				desc := data[pos : pos+176]
+				// descriptor structs in movie files place
+				// descBubbleText 156 bytes from the start.
+				desc := data[pos : pos+156]
 				pictID := binary.BigEndian.Uint32(desc[0:4])
 				nameBytes := bytes.TrimRight(desc[98:146], "\x00")
 				name := decodeMacRoman(nameBytes)
 				colorData := append([]byte(nil), desc[68:98]...)
-				pos += 176
+				pos += 156
 				if binary.BigEndian.Uint32(desc[28:32]) != 0 {
 					if pos+2 > len(data) {
 						pos = len(data)
