@@ -13,7 +13,7 @@ type logMessage struct {
 }
 
 func TestParseDrawStateFromLogs(t *testing.T) {
-	f, err := os.Open("go_client/testdata/draw_state.json")
+	f, err := os.Open("testdata/draw_state.json")
 	if err != nil {
 		t.Fatal(err)
 	}

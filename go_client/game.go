@@ -54,8 +54,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	stateMu.Lock()
 	descs := make([]frameDescriptor, 0, len(state.descriptors))
-	for _, d := range state.descriptors {
+	descMap := make(map[uint8]frameDescriptor, len(state.descriptors))
+	for idx, d := range state.descriptors {
 		descs = append(descs, d)
+		descMap[idx] = d
 	}
 	pics := append([]framePicture(nil), state.pictures...)
 	mobiles := make([]frameMobile, 0, len(state.mobiles))
@@ -67,14 +69,30 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	for _, p := range pics {
 		x := int(p.H) + 320
 		y := int(p.V) + 240
-		ebitenutil.DrawRect(screen, float64(x)-2, float64(y)-2, 4, 4, color.RGBA{0, 0, 0xff, 0xff})
+		if img := loadImage(p.PictID); img != nil {
+			op := &ebiten.DrawImageOptions{}
+			op.GeoM.Translate(float64(x), float64(y))
+			screen.DrawImage(img, op)
+		} else {
+			ebitenutil.DrawRect(screen, float64(x)-2, float64(y)-2, 4, 4, color.RGBA{0, 0, 0xff, 0xff})
+		}
 		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%d", p.PictID), x+4, y-8)
 	}
 
 	for _, m := range mobiles {
 		x := int(m.H) + 320
 		y := int(m.V) + 240
-		ebitenutil.DrawRect(screen, float64(x)-3, float64(y)-3, 6, 6, color.RGBA{0xff, 0, 0, 0xff})
+		var img *ebiten.Image
+		if d, ok := descMap[m.Index]; ok {
+			img = loadImage(d.PictID)
+		}
+		if img != nil {
+			op := &ebiten.DrawImageOptions{}
+			op.GeoM.Translate(float64(x), float64(y))
+			screen.DrawImage(img, op)
+		} else {
+			ebitenutil.DrawRect(screen, float64(x)-3, float64(y)-3, 6, 6, color.RGBA{0xff, 0, 0, 0xff})
+		}
 		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%d", m.Index), x+6, y-8)
 	}
 
