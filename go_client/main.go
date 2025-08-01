@@ -13,6 +13,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"go_client/climg"
 )
 
 func main() {
@@ -69,6 +71,12 @@ func main() {
 	}
 
 	autoDemo := *name == "demo" && *pass == "demo"
+
+	var imgErr error
+	clImages, imgErr = climg.Load("CL_Images")
+	if imgErr != nil {
+		log.Printf("load CL_Images: %v", imgErr)
+	}
 
 	clientVersion := *clientVer
 	for {

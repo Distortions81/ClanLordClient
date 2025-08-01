@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
-	_ "image/png"
 	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+
+	"go_client/climg"
 )
 
 // imageCache lazily loads images from the img directory. The files are
@@ -16,6 +17,7 @@ import (
 var (
 	imageCache = make(map[uint16]*ebiten.Image)
 	imageMu    sync.Mutex
+	clImages   *climg.CLImages
 )
 
 // loadImage retrieves the image for the specified picture ID. Images are
@@ -25,6 +27,12 @@ func loadImage(id uint16) *ebiten.Image {
 	defer imageMu.Unlock()
 	if img, ok := imageCache[id]; ok {
 		return img
+	}
+	if clImages != nil {
+		if img := clImages.Get(uint32(id)); img != nil {
+			imageCache[id] = img
+			return img
+		}
 	}
 	path := fmt.Sprintf("img/id-%04d.png", id)
 	img, _, err := ebitenutil.NewImageFromFile(path)
