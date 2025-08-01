@@ -25,7 +25,10 @@ func decodeBEPP(data []byte) string {
 	if i := bytes.IndexByte(textBytes, 0); i >= 0 {
 		textBytes = textBytes[:i]
 	}
-	text := decodeMacRoman(textBytes)
+	text := strings.TrimSpace(decodeMacRoman(textBytes))
+	if text == "" {
+		return ""
+	}
 	switch prefix {
 	case "th":
 		return "think: " + text
@@ -63,7 +66,10 @@ func decodeBubble(data []byte) string {
 	if i := bytes.IndexByte(msgData, 0); i >= 0 {
 		msgData = msgData[:i]
 	}
-	text := decodeMacRoman(msgData)
+	text := strings.TrimSpace(decodeMacRoman(msgData))
+	if text == "" {
+		return ""
+	}
 	switch typ & kBubbleTypeMask {
 	case kBubbleNormal:
 		return "say: " + text
