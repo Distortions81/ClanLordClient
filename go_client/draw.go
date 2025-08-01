@@ -63,6 +63,87 @@ func signExtend(v uint32, bits int) int16 {
 	return int16(int32(v))
 }
 
+// picturesSummary returns a compact string of picture IDs and coordinates for
+// debugging. At most the first 8 entries are included.
+func picturesSummary(pics []framePicture) string {
+	const max = 8
+	var buf bytes.Buffer
+	for i, p := range pics {
+		if i >= max {
+			buf.WriteString("...")
+			break
+		}
+		fmt.Fprintf(&buf, "%d:(%d,%d) ", p.PictID, p.H, p.V)
+	}
+	return buf.String()
+}
+
+// onScreen reports whether the picture lies within the visible playfield.
+func onScreen(p framePicture) bool {
+	x := int(p.H) + fieldCenterX
+	y := int(p.V) + fieldCenterY
+	return x >= 0 && x < gameAreaSizeX && y >= 0 && y < gameAreaSizeY
+}
+
+// pictureShift returns the (dx, dy) movement that most on-screen pictures agree on
+// between two consecutive frames. Pictures are matched by PictID (duplicates
+// included). The boolean result is false when no majority offset is found.
+func pictureShift(prev, cur []framePicture) (int, int, bool) {
+	if len(prev) == 0 || len(cur) == 0 {
+		dlog("pictureShift: no data prev=%d cur=%d", len(prev), len(cur))
+		return 0, 0, false
+	}
+
+	counts := make(map[[2]int]int)
+	total := 0
+	maxInt := int(^uint(0) >> 1)
+	for _, p := range prev {
+		if !onScreen(p) {
+			continue
+		}
+		bestDist := maxInt
+		var bestDx, bestDy int
+		matched := false
+		for _, c := range cur {
+			if p.PictID != c.PictID || !onScreen(c) {
+				continue
+			}
+			dx := int(c.H) - int(p.H)
+			dy := int(c.V) - int(p.V)
+			dist := dx*dx + dy*dy
+			if dist < bestDist {
+				bestDist = dist
+				bestDx = dx
+				bestDy = dy
+				matched = true
+			}
+		}
+		if matched {
+			counts[[2]int{bestDx, bestDy}]++
+			total++
+		}
+	}
+	if total == 0 {
+		dlog("pictureShift: no matching pairs")
+		return 0, 0, false
+	}
+
+	best := [2]int{}
+	bestCount := 0
+	for k, c := range counts {
+		if c > bestCount {
+			best = k
+			bestCount = c
+		}
+	}
+	dlog("pictureShift: counts=%v best=%v count=%d total=%d", counts, best, bestCount, total)
+	if bestCount*2 <= total {
+		dlog("pictureShift: no majority best=%d total=%d", bestCount, total)
+		return 0, 0, false
+	}
+	return best[0], best[1], true
+}
+
 // handleDrawState decodes the packed draw state message.
 func handleDrawState(m []byte) {
 	if len(m) < 11 { // 2 byte tag + 9 bytes minimum
@@ -193,13 +274,29 @@ func parseDrawState(data []byte) bool {
 	}
 
 	// retain previously drawn pictures when the packet specifies pictAgain
+	prevPics := state.pictures
 	again := pictAgain
-	if again > len(state.pictures) {
-		again = len(state.pictures)
+	if again > len(prevPics) {
+		again = len(prevPics)
 	}
 	newPics := make([]framePicture, again+pictCount)
-	copy(newPics, state.pictures[:again])
+	copy(newPics, prevPics[:again])
 	copy(newPics[again:], pics)
+	if interp {
+		dx, dy, ok := pictureShift(prevPics, newPics)
+		dlog("interp pictures again=%d prev=%d cur=%d shift=(%d,%d) ok=%t", again, len(prevPics), len(newPics), dx, dy, ok)
+		if !ok {
+			dlog("prev pics: %s", picturesSummary(prevPics))
+			dlog("new  pics: %s", picturesSummary(newPics))
+		}
+		if ok {
+			state.picShiftX = dx
+			state.picShiftY = dy
+		} else {
+			state.picShiftX = 0
+			state.picShiftY = 0
+		}
+	}
 	state.pictures = newPics
 
 	if interp {
@@ -219,6 +316,7 @@ func parseDrawState(data []byte) bool {
 				interval = d
 			}
 		}
+		dlog("interp mobiles interval=%s", interval)
 		state.prevTime = time.Now()
 		state.curTime = state.prevTime.Add(interval)
 	}

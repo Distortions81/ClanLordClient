@@ -30,6 +30,8 @@ var interp bool
 type drawState struct {
 	descriptors map[uint8]frameDescriptor
 	pictures    []framePicture
+	picShiftX   int
+	picShiftY   int
 	mobiles     map[uint8]frameMobile
 	prevMobiles map[uint8]frameMobile
 	prevTime    time.Time
@@ -71,6 +73,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		descMap[idx] = d
 	}
 	pics := append([]framePicture(nil), state.pictures...)
+	picShiftX := state.picShiftX
+	picShiftY := state.picShiftY
 	mobiles := make([]frameMobile, 0, len(state.mobiles))
 	for _, m := range state.mobiles {
 		mobiles = append(mobiles, m)
@@ -98,6 +102,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			alpha = 1
 		}
 	}
+	dlog("Draw alpha=%.2f shift=(%d,%d) pics=%d", alpha, picShiftX, picShiftY, len(pics))
 
 	sort.Slice(pics, func(i, j int) bool {
 		pi := 0
@@ -154,8 +159,13 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	drawPicture := func(p framePicture) {
-		x := int(p.H) + fieldCenterX
-		y := int(p.V) + fieldCenterY
+		// pictureShift computes current - previous coordinates, so
+		// negate the values to start drawing at the old position and
+		// interpolate toward the new one.
+		offX := -float64(picShiftX) * (1 - alpha)
+		offY := -float64(picShiftY) * (1 - alpha)
+		x := int(math.Round(float64(p.H)+offX)) + fieldCenterX
+		y := int(math.Round(float64(p.V)+offY)) + fieldCenterY
 		if img := loadImage(p.PictID); img != nil {
 			op := &ebiten.DrawImageOptions{}
 			w, h := img.Bounds().Dx(), img.Bounds().Dy()
