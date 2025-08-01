@@ -266,13 +266,29 @@ func parseDrawState(data []byte) bool {
 	stateData := data[p:]
 
 	stateMu.Lock()
+	changed := false
 	if onion {
-		if state.prevDescs == nil {
-			state.prevDescs = make(map[uint8]frameDescriptor)
+		if len(descs) > 0 {
+			changed = true
 		}
-		state.prevDescs = make(map[uint8]frameDescriptor, len(state.descriptors))
-		for idx, d := range state.descriptors {
-			state.prevDescs[idx] = d
+		if len(mobiles) != len(state.mobiles) {
+			changed = true
+		} else {
+			for _, m := range mobiles {
+				if pm, ok := state.mobiles[m.Index]; !ok || pm.State != m.State {
+					changed = true
+					break
+				}
+			}
+		}
+		if changed {
+			if state.prevDescs == nil {
+				state.prevDescs = make(map[uint8]frameDescriptor)
+			}
+			state.prevDescs = make(map[uint8]frameDescriptor, len(state.descriptors))
+			for idx, d := range state.descriptors {
+				state.prevDescs[idx] = d
+			}
 		}
 	}
 	if state.descriptors == nil {
@@ -308,7 +324,8 @@ func parseDrawState(data []byte) bool {
 	}
 	state.pictures = newPics
 
-	if interp || onion {
+	needAnimUpdate := interp || (onion && changed)
+	if needAnimUpdate {
 		// save previous mobile positions for interpolation and fading
 		if state.prevMobiles == nil {
 			state.prevMobiles = make(map[uint8]frameMobile)
