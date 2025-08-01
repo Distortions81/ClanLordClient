@@ -211,8 +211,15 @@ func parseDrawState(data []byte) bool {
 	for idx, m := range state.mobiles {
 		state.prevMobiles[idx] = m
 	}
-	state.prevTime = state.curTime
-	state.curTime = time.Now()
+	const defaultInterval = time.Second / 5
+	interval := defaultInterval
+	if !state.prevTime.IsZero() && !state.curTime.IsZero() {
+		if d := state.curTime.Sub(state.prevTime); d > 0 {
+			interval = d
+		}
+	}
+	state.prevTime = time.Now()
+	state.curTime = state.prevTime.Add(interval)
 
 	if state.mobiles == nil {
 		state.mobiles = make(map[uint8]frameMobile)
