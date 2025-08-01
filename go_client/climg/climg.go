@@ -97,6 +97,23 @@ func Load(path string) (*CLImages, error) {
 		}
 	}
 
+	// populate IDREF data
+	for _, ref := range imgs.idrefs {
+		if _, err := r.Seek(int64(ref.offset), io.SeekStart); err != nil {
+			return nil, err
+		}
+		var pad uint32
+		if err := binary.Read(r, binary.BigEndian, &pad); err != nil {
+			return nil, err
+		}
+		if err := binary.Read(r, binary.BigEndian, &ref.imageID); err != nil {
+			return nil, err
+		}
+		if err := binary.Read(r, binary.BigEndian, &ref.colorID); err != nil {
+			return nil, err
+		}
+	}
+
 	// preload colors
 	for _, c := range imgs.colors {
 		if _, err := r.Seek(int64(c.offset), io.SeekStart); err != nil {
