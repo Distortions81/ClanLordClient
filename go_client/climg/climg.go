@@ -22,6 +22,7 @@ type dataLocation struct {
 	colorBytes []uint16
 	imageID    uint32
 	colorID    uint32
+	flags      uint32
 }
 
 type CLImages struct {
@@ -37,6 +38,9 @@ const (
 	TYPE_IDREF = 0x50446635
 	TYPE_IMAGE = 0x42697432
 	TYPE_COLOR = 0x436c7273
+
+	pictDefFlagTransparent = 0x8000
+	pictDefBlendMask       = 0x0003
 )
 
 func Load(path string) (*CLImages, error) {
@@ -102,14 +106,21 @@ func Load(path string) (*CLImages, error) {
 		if _, err := r.Seek(int64(ref.offset), io.SeekStart); err != nil {
 			return nil, err
 		}
-		var pad uint32
-		if err := binary.Read(r, binary.BigEndian, &pad); err != nil {
+		var version uint32
+		if err := binary.Read(r, binary.BigEndian, &version); err != nil {
 			return nil, err
 		}
 		if err := binary.Read(r, binary.BigEndian, &ref.imageID); err != nil {
 			return nil, err
 		}
 		if err := binary.Read(r, binary.BigEndian, &ref.colorID); err != nil {
+			return nil, err
+		}
+		var checksum uint32
+		if err := binary.Read(r, binary.BigEndian, &checksum); err != nil {
+			return nil, err
+		}
+		if err := binary.Read(r, binary.BigEndian, &ref.flags); err != nil {
 			return nil, err
 		}
 	}
@@ -233,13 +244,25 @@ func (c *CLImages) Get(id uint32) *ebiten.Image {
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
 	pal := palette // from palette.go
 	col := colLoc.colorBytes
+
+	alpha := uint8(255)
+	switch ref.flags & pictDefBlendMask {
+	case 1:
+		alpha = 0xBF
+	case 2:
+		alpha = 0x7F
+	case 3:
+		alpha = 0x3F
+	}
+	transparent := (ref.flags & pictDefFlagTransparent) != 0
+
 	for i := 0; i < pixelCount; i++ {
 		idx := col[data[i]]
 		r := uint8(pal[idx*3])
 		g := uint8(pal[idx*3+1])
 		b := uint8(pal[idx*3+2])
-		a := uint8(255)
-		if idx == 0 {
+		a := alpha
+		if idx == 0 && transparent {
 			a = 0
 		}
 		img.SetRGBA(i%width, i/width, color.RGBA{r, g, b, a})
