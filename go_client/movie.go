@@ -7,6 +7,13 @@ import (
 	"os"
 )
 
+const (
+	flagStale        = 0x01
+	flagMobileData   = 0x02
+	flagGameState    = 0x04
+	flagPictureTable = 0x08
+)
+
 const movieSignature = 0xdeadbeef
 
 func parseMovie(path string) ([][]byte, error) {
@@ -42,6 +49,85 @@ func parseMovie(path string) ([][]byte, error) {
 		_ = frame
 		_ = flags
 		pos += 12
+		if flags&flagGameState != 0 {
+			if pos+24 > len(data) {
+				break
+			}
+			maxSize := int(binary.BigEndian.Uint32(data[pos+12 : pos+16]))
+			pos += 24 + maxSize
+			continue
+		}
+		if flags&flagMobileData != 0 {
+			for pos+4 <= len(data) {
+				idx := int32(binary.BigEndian.Uint32(data[pos : pos+4]))
+				pos += 4
+				if idx == -1 {
+					break
+				}
+				if pos+16 > len(data) {
+					pos = len(data)
+					break
+				}
+				stateVal := binary.BigEndian.Uint32(data[pos : pos+4])
+				h := int16(binary.BigEndian.Uint32(data[pos+4 : pos+8]))
+				v := int16(binary.BigEndian.Uint32(data[pos+8 : pos+12]))
+				colors := uint8(binary.BigEndian.Uint32(data[pos+12 : pos+16]))
+				pos += 16
+				if pos+168 > len(data) {
+					pos = len(data)
+					break
+				}
+				desc := data[pos : pos+168]
+				pictID := binary.BigEndian.Uint32(desc[0:4])
+				nameBytes := bytes.TrimRight(desc[98:146], "\x00")
+				name := decodeMacRoman(nameBytes)
+				colorData := append([]byte(nil), desc[68:98]...)
+				pos += 168
+				if binary.BigEndian.Uint32(desc[28:32]) != 0 {
+					if pos+2 > len(data) {
+						pos = len(data)
+						break
+					}
+					bubLen := int(binary.BigEndian.Uint16(data[pos : pos+2]))
+					pos += 2 + bubLen
+				}
+				d := frameDescriptor{Index: uint8(idx), PictID: uint16(pictID), Name: name, Colors: colorData}
+				m := frameMobile{Index: uint8(idx), State: uint8(stateVal), H: h, V: v, Colors: colors}
+				stateMu.Lock()
+				if state.descriptors == nil {
+					state.descriptors = make(map[uint8]frameDescriptor)
+				}
+				state.descriptors[uint8(idx)] = d
+				if state.mobiles == nil {
+					state.mobiles = make(map[uint8]frameMobile)
+				}
+				state.mobiles[m.Index] = m
+				stateMu.Unlock()
+			}
+			continue
+		}
+		if flags&flagPictureTable != 0 {
+			if pos+2 > len(data) {
+				break
+			}
+			count := int(binary.BigEndian.Uint16(data[pos : pos+2]))
+			pos += 2
+			pics := make([]framePicture, 0, count)
+			for i := 0; i < count && pos+6 <= len(data); i++ {
+				id := binary.BigEndian.Uint16(data[pos : pos+2])
+				h := int16(binary.BigEndian.Uint16(data[pos+2 : pos+4]))
+				v := int16(binary.BigEndian.Uint16(data[pos+4 : pos+6]))
+				pos += 6
+				pics = append(pics, framePicture{PictID: id, H: h, V: v})
+			}
+			if pos+4 <= len(data) {
+				pos += 4
+			}
+			stateMu.Lock()
+			state.pictures = pics
+			stateMu.Unlock()
+			continue
+		}
 		if size > 0 {
 			if pos+size > len(data) {
 				break
