@@ -135,8 +135,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		h := float64(m.H)
 		v := float64(m.V)
 		if pm, ok := prevMobiles[m.Index]; ok {
-			h = float64(pm.H)*(1-alpha) + float64(m.H)*alpha
-			v = float64(pm.V)*(1-alpha) + float64(m.V)*alpha
+			if pm.H != m.H || pm.V != m.V {
+				h = float64(pm.H)*(1-alpha) + float64(m.H)*alpha
+				v = float64(pm.V)*(1-alpha) + float64(m.V)*alpha
+			}
 		}
 		x := int(h) + fieldCenterX
 		y := int(v) + fieldCenterY
@@ -161,8 +163,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		if idx < len(prevPics) {
 			ph := prevPics[idx].H
 			pv := prevPics[idx].V
-			h = float64(ph)*(1-alpha) + float64(p.H)*alpha
-			v = float64(pv)*(1-alpha) + float64(p.V)*alpha
+			if ph != p.H || pv != p.V {
+				h = float64(ph)*(1-alpha) + float64(p.H)*alpha
+				v = float64(pv)*(1-alpha) + float64(p.V)*alpha
+			}
 		}
 		x := int(h) + fieldCenterX
 		y := int(v) + fieldCenterY
