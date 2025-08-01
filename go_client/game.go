@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"image/color"
 	"log"
-	"math/rand"
 	"net"
 	"sync"
 	"time"
@@ -17,7 +16,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
-var mouseX, mouseY = uint16(rand.Intn(1600)), uint16(rand.Intn(1200))
+var mouseX, mouseY uint16
 
 var gameCtx context.Context
 
@@ -44,6 +43,9 @@ func (g *Game) Update() error {
 		return fmt.Errorf("context done")
 	default:
 	}
+	x, y := ebiten.CursorPosition()
+	mouseX = uint16(x)
+	mouseY = uint16(y)
 	return nil
 }
 
@@ -82,6 +84,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 	ebitenutil.DebugPrintAt(screen, strings.Join(lines, "\n"), 4, 4)
 	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("desc:%d pict:%d mobile:%d", len(descs), len(pics), len(mobiles)), 4, 460)
+
+	msgs := getMessages()
+	startY := 480 - 12*len(msgs)
+	for i, msg := range msgs {
+		ebitenutil.DebugPrintAt(screen, msg, 4, startY+12*i)
+	}
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -137,6 +145,7 @@ func udpReadLoop(ctx context.Context, conn net.Conn) {
 		}
 		if txt := decodeMessage(m); txt != "" {
 			fmt.Println(txt)
+			addMessage(txt)
 		} else {
 			fmt.Printf("udp msg tag %d len %d\n", tag, len(m))
 		}
@@ -169,6 +178,7 @@ loop:
 		}
 		if txt := decodeMessage(m); txt != "" {
 			fmt.Println(txt)
+			addMessage(txt)
 		} else {
 			fmt.Printf("msg tag %d len %d\n", tag, len(m))
 		}
