@@ -29,14 +29,28 @@ func main() {
 		if err != nil {
 			log.Fatalf("parse movie: %v", err)
 		}
-		for _, m := range frames {
-			if len(m) >= 2 && binary.BigEndian.Uint16(m[:2]) == 2 {
-				handleDrawState(m)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			ticker := time.NewTicker(200 * time.Millisecond)
+			defer ticker.Stop()
+			for _, m := range frames {
+				if len(m) >= 2 && binary.BigEndian.Uint16(m[:2]) == 2 {
+					handleDrawState(m)
+				}
+				if txt := decodeMessage(m); txt != "" {
+					fmt.Println(txt)
+				}
+				select {
+				case <-ticker.C:
+				case <-ctx.Done():
+					return
+				}
 			}
-			if txt := decodeMessage(m); txt != "" {
-				fmt.Println(txt)
-			}
-		}
+			cancel()
+		}()
+
+		runGame(ctx)
 		return
 	}
 
