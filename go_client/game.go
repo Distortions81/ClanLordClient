@@ -46,6 +46,55 @@ var (
 
 type Game struct{}
 
+// picMatcher helps pair current pictures with those from the previous frame
+// when the ordering differs between frames.
+type picMatcher struct {
+	prevByID map[uint16][]int
+	prev     []framePicture
+	used     []bool
+}
+
+func newPicMatcher(prev []framePicture) *picMatcher {
+	pm := &picMatcher{
+		prevByID: make(map[uint16][]int),
+		prev:     prev,
+		used:     make([]bool, len(prev)),
+	}
+	for i, p := range prev {
+		pm.prevByID[p.PictID] = append(pm.prevByID[p.PictID], i)
+	}
+	return pm
+}
+
+func (pm *picMatcher) match(p framePicture) (framePicture, bool) {
+	idxs := pm.prevByID[p.PictID]
+	bestIdx := -1
+	bestDist := int(^uint(0) >> 1) // max int
+	for _, i := range idxs {
+		if pm.used[i] {
+			continue
+		}
+		prev := pm.prev[i]
+		dist := abs(int(prev.H)-int(p.H)) + abs(int(prev.V)-int(p.V))
+		if dist < bestDist {
+			bestDist = dist
+			bestIdx = i
+		}
+	}
+	if bestIdx >= 0 {
+		pm.used[bestIdx] = true
+		return pm.prev[bestIdx], true
+	}
+	return framePicture{}, false
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
 func (g *Game) Update() error {
 	select {
 	case <-gameCtx.Done():
@@ -70,6 +119,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 	pics := append([]framePicture(nil), state.pictures...)
 	prevPics := append([]framePicture(nil), state.prevPictures...)
+	matcher := newPicMatcher(prevPics)
 	mobiles := make([]frameMobile, 0, len(state.mobiles))
 	for _, m := range state.mobiles {
 		mobiles = append(mobiles, m)
@@ -158,7 +208,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	drawPicture := func(p framePicture, idx int) {
 		h := float64(p.H)
 		v := float64(p.V)
-		if idx < len(prevPics) {
+		if prev, ok := matcher.match(p); ok {
+			h = float64(prev.H)*(1-alpha) + float64(p.H)*alpha
+			v = float64(prev.V)*(1-alpha) + float64(p.V)*alpha
+		} else if idx < len(prevPics) {
 			ph := prevPics[idx].H
 			pv := prevPics[idx].V
 			h = float64(ph)*(1-alpha) + float64(p.H)*alpha
