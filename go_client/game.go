@@ -28,23 +28,21 @@ var interp bool
 
 // drawState tracks information needed by the Ebiten renderer.
 type drawState struct {
-	descriptors  map[uint8]frameDescriptor
-	pictures     []framePicture
-	prevPictures []framePicture
-	picShiftX    int
-	picShiftY    int
-	mobiles      map[uint8]frameMobile
-	prevMobiles  map[uint8]frameMobile
-	prevTime     time.Time
-	curTime      time.Time
+	descriptors map[uint8]frameDescriptor
+	pictures    []framePicture
+	picShiftX   int
+	picShiftY   int
+	mobiles     map[uint8]frameMobile
+	prevMobiles map[uint8]frameMobile
+	prevTime    time.Time
+	curTime     time.Time
 }
 
 var (
 	state = drawState{
-		descriptors:  make(map[uint8]frameDescriptor),
-		prevPictures: nil,
-		mobiles:      make(map[uint8]frameMobile),
-		prevMobiles:  make(map[uint8]frameMobile),
+		descriptors: make(map[uint8]frameDescriptor),
+		mobiles:     make(map[uint8]frameMobile),
+		prevMobiles: make(map[uint8]frameMobile),
 	}
 	stateMu sync.Mutex
 )

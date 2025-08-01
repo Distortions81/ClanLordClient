@@ -63,12 +63,9 @@ func signExtend(v uint32, bits int) int16 {
 	return int16(int32(v))
 }
 
-// pictureShift returns the most common (dx, dy) offset between matching
-// pictures in prev and cur. The boolean return is false when no majority is
-// found.
 // pictureShift returns the (dx, dy) movement that most pictures agree on
-// between two consecutive frames. The boolean return is false when no majority
-// is found. Pictures are matched by PictID; duplicates are all considered.
+// between two consecutive frames. Pictures are matched by PictID (duplicates
+// included). The boolean result is false when no majority offset is found.
 func pictureShift(prev, cur []framePicture) (int, int, bool) {
 	if len(prev) == 0 || len(cur) == 0 {
 		dlog("pictureShift: no data prev=%d cur=%d", len(prev), len(cur))
@@ -257,7 +254,6 @@ func parseDrawState(data []byte) bool {
 			state.picShiftX = 0
 			state.picShiftY = 0
 		}
-		state.prevPictures = prevPics
 	}
 	state.pictures = newPics
 
