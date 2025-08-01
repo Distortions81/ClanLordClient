@@ -25,6 +25,7 @@ var mouseDown bool
 var gameCtx context.Context
 var scale int = 3
 var interp bool
+var onion bool
 
 // drawState tracks information needed by the Ebiten renderer.
 type drawState struct {
@@ -34,6 +35,7 @@ type drawState struct {
 	picShiftY   int
 	mobiles     map[uint8]frameMobile
 	prevMobiles map[uint8]frameMobile
+	prevDescs   map[uint8]frameDescriptor
 	prevTime    time.Time
 	curTime     time.Time
 }
@@ -43,6 +45,7 @@ var (
 		descriptors: make(map[uint8]frameDescriptor),
 		mobiles:     make(map[uint8]frameMobile),
 		prevMobiles: make(map[uint8]frameMobile),
+		prevDescs:   make(map[uint8]frameDescriptor),
 	}
 	stateMu sync.Mutex
 )
@@ -80,10 +83,17 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		mobiles = append(mobiles, m)
 	}
 	var prevMobiles map[uint8]frameMobile
-	if interp {
+	if interp || onion {
 		prevMobiles = make(map[uint8]frameMobile, len(state.prevMobiles))
 		for idx, m := range state.prevMobiles {
 			prevMobiles[idx] = m
+		}
+	}
+	var prevDescs map[uint8]frameDescriptor
+	if onion {
+		prevDescs = make(map[uint8]frameDescriptor, len(state.prevDescs))
+		for idx, d := range state.prevDescs {
+			prevDescs[idx] = d
 		}
 	}
 	prevTime := state.prevTime
@@ -91,15 +101,30 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	stateMu.Unlock()
 
 	alpha := 1.0
-	if interp && !curTime.IsZero() && curTime.After(prevTime) {
+	fade := 1.0
+	if (interp || onion) && !curTime.IsZero() && curTime.After(prevTime) {
 		elapsed := time.Since(prevTime)
 		interval := curTime.Sub(prevTime)
-		alpha = float64(elapsed) / float64(interval)
-		if alpha < 0 {
-			alpha = 0
+		if interp {
+			alpha = float64(elapsed) / float64(interval)
+			if alpha < 0 {
+				alpha = 0
+			}
+			if alpha > 1 {
+				alpha = 1
+			}
 		}
-		if alpha > 1 {
-			alpha = 1
+		if onion {
+			half := interval / 2
+			if half > 0 {
+				fade = float64(elapsed) / float64(half)
+			}
+			if fade < 0 {
+				fade = 0
+			}
+			if fade > 1 {
+				fade = 1
+			}
 		}
 	}
 	dlog("Draw alpha=%.2f shift=(%d,%d) pics=%d", alpha, picShiftX, picShiftY, len(pics))
@@ -147,11 +172,32 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		if d, ok := descMap[m.Index]; ok {
 			img = loadMobileFrame(d.PictID, m.State)
 		}
+		var prevImg *ebiten.Image
+		if onion {
+			if pm, ok := prevMobiles[m.Index]; ok {
+				pd := descMap[m.Index]
+				if d, ok := prevDescs[m.Index]; ok {
+					pd = d
+				}
+				prevImg = loadMobileFrame(pd.PictID, pm.State)
+			}
+		}
 		if img != nil {
 			size := img.Bounds().Dx()
-			op := &ebiten.DrawImageOptions{}
-			op.GeoM.Translate(float64(x-size/2), float64(y-size/2))
-			screen.DrawImage(img, op)
+			if onion && fade < 1 && prevImg != nil {
+				op1 := &ebiten.DrawImageOptions{}
+				op1.GeoM.Translate(float64(x-size/2), float64(y-size/2))
+				op1.ColorM.Scale(1-fade, 1-fade, 1-fade, 1-fade)
+				screen.DrawImage(prevImg, op1)
+				op2 := &ebiten.DrawImageOptions{}
+				op2.GeoM.Translate(float64(x-size/2), float64(y-size/2))
+				op2.ColorM.Scale(fade, fade, fade, fade)
+				screen.DrawImage(img, op2)
+			} else {
+				op := &ebiten.DrawImageOptions{}
+				op.GeoM.Translate(float64(x-size/2), float64(y-size/2))
+				screen.DrawImage(img, op)
+			}
 		} else {
 			ebitenutil.DrawRect(screen, float64(x)-3, float64(y)-3, 6, 6, color.RGBA{0xff, 0, 0, 0xff})
 		}
