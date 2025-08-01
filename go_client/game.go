@@ -52,7 +52,7 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	screen.Fill(color.RGBA{0xe0, 0xe0, 0xe0, 0xff})
+	screen.Fill(color.RGBA{0x00, 0x00, 0x00, 0xff})
 
 	stateMu.Lock()
 	descs := make([]frameDescriptor, 0, len(state.descriptors))
