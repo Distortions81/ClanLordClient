@@ -63,6 +63,21 @@ func signExtend(v uint32, bits int) int16 {
 	return int16(int32(v))
 }
 
+// picturesSummary returns a compact string of picture IDs and coordinates for
+// debugging. At most the first 8 entries are included.
+func picturesSummary(pics []framePicture) string {
+	const max = 8
+	var buf bytes.Buffer
+	for i, p := range pics {
+		if i >= max {
+			buf.WriteString("...")
+			break
+		}
+		fmt.Fprintf(&buf, "%d:(%d,%d) ", p.PictID, p.H, p.V)
+	}
+	return buf.String()
+}
+
 // onScreen reports whether the picture lies within the visible playfield.
 func onScreen(p framePicture) bool {
 	x := int(p.H) + fieldCenterX
@@ -81,17 +96,30 @@ func pictureShift(prev, cur []framePicture) (int, int, bool) {
 
 	counts := make(map[[2]int]int)
 	total := 0
+	maxInt := int(^uint(0) >> 1)
 	for _, p := range prev {
 		if !onScreen(p) {
 			continue
 		}
+		bestDist := maxInt
+		var bestDx, bestDy int
+		matched := false
 		for _, c := range cur {
 			if p.PictID != c.PictID || !onScreen(c) {
 				continue
 			}
 			dx := int(c.H) - int(p.H)
 			dy := int(c.V) - int(p.V)
-			counts[[2]int{dx, dy}]++
+			dist := dx*dx + dy*dy
+			if dist < bestDist {
+				bestDist = dist
+				bestDx = dx
+				bestDy = dy
+				matched = true
+			}
+		}
+		if matched {
+			counts[[2]int{bestDx, bestDy}]++
 			total++
 		}
 	}
@@ -257,6 +285,10 @@ func parseDrawState(data []byte) bool {
 	if interp {
 		dx, dy, ok := pictureShift(prevPics, newPics)
 		dlog("interp pictures again=%d prev=%d cur=%d shift=(%d,%d) ok=%t", again, len(prevPics), len(newPics), dx, dy, ok)
+		if !ok {
+			dlog("prev pics: %s", picturesSummary(prevPics))
+			dlog("new  pics: %s", picturesSummary(newPics))
+		}
 		if ok {
 			state.picShiftX = dx
 			state.picShiftY = dy
