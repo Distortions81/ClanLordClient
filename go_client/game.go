@@ -160,8 +160,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	drawPicture := func(p framePicture) {
-		offX := float64(picShiftX) * (1 - alpha)
-		offY := float64(picShiftY) * (1 - alpha)
+		// pictureShift computes current - previous coordinates, so
+		// negate the values to start drawing at the old position and
+		// interpolate toward the new one.
+		offX := -float64(picShiftX) * (1 - alpha)
+		offY := -float64(picShiftY) * (1 - alpha)
 		x := int(math.Round(float64(p.H)+offX)) + fieldCenterX
 		y := int(math.Round(float64(p.V)+offY)) + fieldCenterY
 		if img := loadImage(p.PictID); img != nil {
