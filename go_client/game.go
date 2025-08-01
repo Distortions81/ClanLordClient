@@ -102,10 +102,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		y := int(m.V) + fieldCenterY
 		var img *ebiten.Image
 		if d, ok := descMap[m.Index]; ok {
-			img = loadImage(d.PictID)
+			img = loadMobileFrame(d.PictID, m.State)
 		}
 		if img != nil {
-			size := img.Bounds().Dx() / 16
+			size := img.Bounds().Dx()
 			op := &ebiten.DrawImageOptions{}
 			op.GeoM.Translate(float64(x-size/2), float64(y-size/2))
 			screen.DrawImage(img, op)
@@ -129,35 +129,64 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		texts = append(texts, textItem{x + 4, y - 8, fmt.Sprintf("%d", p.PictID)})
 	}
 
+	// sort pictures by plane and split them into negative, zero and positive planes
+	negPics := make([]framePicture, 0)
+	zeroPics := make([]framePicture, 0)
+	posPics := make([]framePicture, 0)
+	for _, p := range pics {
+		plane := 0
+		if clImages != nil {
+			plane = clImages.Plane(uint32(p.PictID))
+		}
+		switch {
+		case plane < 0:
+			negPics = append(negPics, p)
+		case plane == 0:
+			zeroPics = append(zeroPics, p)
+		default:
+			posPics = append(posPics, p)
+		}
+	}
+
+	// draw pictures below mobiles
+	for _, p := range negPics {
+		drawPicture(p)
+	}
+
+	// draw fallen mobiles before merging
+	sort.Slice(dead, func(i, j int) bool { return dead[i].V < dead[j].V })
 	for _, m := range dead {
 		drawMobile(m)
 	}
 
-	split := 0
-	for split < len(pics) {
-		plane := 0
-		if clImages != nil {
-			plane = clImages.Plane(uint32(pics[split].PictID))
-		}
-		if plane >= 0 {
-			break
-		}
-		split++
-	}
-
-	for _, p := range pics[:split] {
-		drawPicture(p)
-	}
-
 	sort.Slice(live, func(i, j int) bool { return live[i].V < live[j].V })
 
-	for _, m := range live {
-		if m.State != poseDead {
-			drawMobile(m)
+	// merge plane 0 pictures with living mobiles by vertical coordinate
+	i, j := 0, 0
+	for i < len(live) || j < len(zeroPics) {
+		var mV, pV int
+		if i < len(live) {
+			mV = int(live[i].V)
+		} else {
+			mV = int(^uint(0) >> 1) // max int
+		}
+		if j < len(zeroPics) {
+			pV = int(zeroPics[j].V)
+		} else {
+			pV = int(^uint(0) >> 1)
+		}
+		if mV < pV {
+			if live[i].State != poseDead {
+				drawMobile(live[i])
+			}
+			i++
+		} else {
+			drawPicture(zeroPics[j])
+			j++
 		}
 	}
 
-	for _, p := range pics[split:] {
+	for _, p := range posPics {
 		drawPicture(p)
 	}
 
