@@ -6,25 +6,17 @@ Go program under `go_client/` demonstrates how to connect to the game servers.
 ## Demo characters
 
 The game offers a set of free demo characters accessible using the special
-account name `demo` and password `demo`.  You can list the available demo
-characters with the Go client:
+account name `demo` and password `demo`. When these credentials are supplied,
+the Go client will select a random demo character to log in as:
 
 ```bash
-go run ./go_client -list-demo
-```
-
-To log in as one of the demo characters just provide its name along with the
-password `demo`:
-
-```bash
-go run ./go_client -name "Agratis One" -pass demo
+go run ./go_client -name demo -pass demo
 ```
 
 The default server address is `server.deltatao.com:5010` and can be overridden
 with the `-host` flag.
 
-Pass `-dump` to log raw network traffic while debugging. Use `-verbose=false`
-to disable the default verbose logging of message summaries. When the server
+Debug logs are written to `debug-<date>-<time>.log` by default. Use `-debug=false` to disable logging. When the server
 responds with `-30972` or `-30973`, the Go client will now fetch updated data
 files from the provided URL and reconnect automatically.
 
