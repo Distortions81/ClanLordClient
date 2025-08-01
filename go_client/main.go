@@ -45,6 +45,8 @@ func encodeFullVersion(v int) uint32 {
 	return uint32(v) << 8
 }
 
+const baseVersion = 1353
+
 func hexDump(prefix string, data []byte) {
 	if !dumpTraffic {
 		return
@@ -595,7 +597,7 @@ func main() {
 
 		sendVersion := clientVersion
 		if imagesMissing || soundsMissing {
-			sendVersion = clientVersion - 1
+			sendVersion = baseVersion - 1
 		}
 
 		tcpConn, err := net.Dial("tcp", *host)

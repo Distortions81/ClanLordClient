@@ -38,3 +38,4 @@ go run ./go_client -client-version 1353
 The value passed should be the desired `kVersionNumber`.  Older versions
 cause the server to send the associated images and sound archives before
 reconnecting.
+The Go client automatically falls back to this baseline version when it detects missing image or sound data.
