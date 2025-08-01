@@ -15,6 +15,7 @@ const (
 )
 
 const movieSignature = 0xdeadbeef
+const oldestMovieVersion = 193
 
 func parseMovie(path string) ([][]byte, error) {
 	data, err := os.ReadFile(path)
@@ -27,10 +28,19 @@ func parseMovie(path string) ([][]byte, error) {
 	if binary.BigEndian.Uint32(data[:4]) != movieSignature {
 		return nil, fmt.Errorf("bad signature")
 	}
+	version := binary.BigEndian.Uint16(data[4:6])
+	// Arindal movies store version numbers 100x larger.
+	if version > 50000 {
+		version /= 100
+	}
+	if version < oldestMovieVersion {
+		return nil, fmt.Errorf("movie version too old: %d", version)
+	}
 	headerLen := int(binary.BigEndian.Uint16(data[6:8]))
 	if headerLen <= 0 || headerLen > len(data) {
 		headerLen = 24
 	}
+	dlog("movie version %d headerLen %d", version, headerLen)
 	pos := headerLen
 	sign := []byte{0xde, 0xad, 0xbe, 0xef}
 	frames := [][]byte{}
@@ -60,53 +70,14 @@ func parseMovie(path string) ([][]byte, error) {
 		}
 		if flags&flagMobileData != 0 {
 			dlog("MobileData table at %d", pos)
-			for pos+4 <= len(data) {
-				idx := int32(binary.BigEndian.Uint32(data[pos : pos+4]))
-				pos += 4
-				if idx == -1 {
-					break
-				}
-				if pos+16 > len(data) {
-					pos = len(data)
-					break
-				}
-				stateVal := binary.BigEndian.Uint32(data[pos : pos+4])
-				h := int16(binary.BigEndian.Uint32(data[pos+4 : pos+8]))
-				v := int16(binary.BigEndian.Uint32(data[pos+8 : pos+12]))
-				colors := uint8(binary.BigEndian.Uint32(data[pos+12 : pos+16]))
-				pos += 16
-				if pos+156 > len(data) {
-					pos = len(data)
-					break
-				}
-				// descriptor structs in movie files place
-				// descBubbleText 156 bytes from the start.
-				desc := data[pos : pos+156]
-				pictID := binary.BigEndian.Uint32(desc[0:4])
-				nameBytes := bytes.TrimRight(desc[98:146], "\x00")
-				name := decodeMacRoman(nameBytes)
-				colorData := append([]byte(nil), desc[68:98]...)
-				pos += 156
-				if binary.BigEndian.Uint32(desc[28:32]) != 0 {
-					if pos+2 > len(data) {
-						pos = len(data)
-						break
-					}
-					bubLen := int(binary.BigEndian.Uint16(data[pos : pos+2]))
-					pos += 2 + bubLen
-				}
-				d := frameDescriptor{Index: uint8(idx), PictID: uint16(pictID), Name: name, Colors: colorData}
-				m := frameMobile{Index: uint8(idx), State: uint8(stateVal), H: h, V: v, Colors: colors}
-				stateMu.Lock()
-				if state.descriptors == nil {
-					state.descriptors = make(map[uint8]frameDescriptor)
-				}
-				state.descriptors[uint8(idx)] = d
-				if state.mobiles == nil {
-					state.mobiles = make(map[uint8]frameMobile)
-				}
-				state.mobiles[m.Index] = m
-				stateMu.Unlock()
+			// Descriptor layouts vary between client versions and
+			// are difficult to decode generically. For now simply
+			// skip until the sentinel value -1 which terminates the
+			// table. This keeps subsequent frame parsing in sync.
+			if idx := bytes.Index(data[pos:], []byte{0xff, 0xff, 0xff, 0xff}); idx >= 0 {
+				pos += idx + 4
+			} else {
+				pos = len(data)
 			}
 			continue
 		}
