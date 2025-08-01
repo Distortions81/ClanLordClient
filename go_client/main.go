@@ -499,6 +499,21 @@ func decodeMessage(m []byte) string {
 		return ""
 	}
 	data := append([]byte(nil), m[16:]...)
+
+	// Many server messages arrive without encryption while others use the
+	// simple XOR cipher. Try decoding the plain data first and fall back to
+	// the encrypted form when that yields no text. This allows us to handle
+	// both cases transparently.
+	if s := decodeBEPP(data); s != "" {
+		return s
+	}
+	if s := decodeBubble(data); s != "" {
+		return s
+	}
+	if str := strings.TrimRight(string(data), "\x00"); str != "" {
+		return str
+	}
+
 	simpleEncrypt(data)
 	if s := decodeBEPP(data); s != "" {
 		return s
@@ -506,8 +521,7 @@ func decodeMessage(m []byte) string {
 	if s := decodeBubble(data); s != "" {
 		return s
 	}
-	str := strings.TrimRight(string(data), "\x00")
-	if str != "" {
+	if str := strings.TrimRight(string(data), "\x00"); str != "" {
 		return str
 	}
 	return ""
