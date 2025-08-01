@@ -204,45 +204,28 @@ func parseDrawState(data []byte) bool {
 	copy(newPics, state.pictures[:again])
 	copy(newPics[again:], pics)
 
-        // initialize camera on the first frame using the player's position
-        if state.prevTime.IsZero() {
-                for _, m := range mobiles {
-                        if m.Index == playerIndex {
-                                state.curCamH = float64(m.H)
-                                state.curCamV = float64(m.V)
-                                break
-                        }
-                }
-                if state.curCamH == 0 && state.curCamV == 0 && len(mobiles) > 0 {
-                        state.curCamH = float64(mobiles[0].H)
-                        state.curCamV = float64(mobiles[0].V)
-                }
-                state.prevCamH = state.curCamH
-                state.prevCamV = state.curCamV
-        }
-
-        // estimate camera movement based on picture deltas
-        prevMap := make(map[uint16]framePicture, len(state.prevPictures))
-        for _, p := range state.prevPictures {
-                if _, ok := prevMap[p.PictID]; !ok {
-                        prevMap[p.PictID] = p
-                }
-        }
-        sumH, sumV := 0, 0
-        count := 0
-        for _, p := range newPics {
-                if prev, ok := prevMap[p.PictID]; ok {
-                        sumH += int(p.H) - int(prev.H)
-                        sumV += int(p.V) - int(prev.V)
-                        count++
-                }
-        }
-        state.prevCamH = state.curCamH
-        state.prevCamV = state.curCamV
-        if count > 0 {
-                state.curCamH += float64(sumH) / float64(count)
-                state.curCamV += float64(sumV) / float64(count)
-        }
+	// estimate camera movement based on picture deltas
+	prevMap := make(map[uint16]framePicture, len(state.prevPictures))
+	for _, p := range state.prevPictures {
+		if _, ok := prevMap[p.PictID]; !ok {
+			prevMap[p.PictID] = p
+		}
+	}
+	sumH, sumV := 0, 0
+	count := 0
+	for _, p := range newPics {
+		if prev, ok := prevMap[p.PictID]; ok {
+			sumH += int(p.H) - int(prev.H)
+			sumV += int(p.V) - int(prev.V)
+			count++
+		}
+	}
+	state.prevCamH = state.curCamH
+	state.prevCamV = state.curCamV
+	if count > 0 {
+		state.curCamH += float64(sumH) / float64(count)
+		state.curCamV += float64(sumV) / float64(count)
+	}
 
 	state.pictures = newPics
 
