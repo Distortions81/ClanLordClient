@@ -26,3 +26,15 @@ with the `-host` flag.
 Pass `-dump` to log raw network traffic while debugging. When the server
 responds with `-30972` or `-30973`, the Go client will now fetch updated data
 files from the provided URL and reconnect automatically.
+
+If you are missing the `CL_Images` or `CL_Sounds` data files you can force
+the server to provide them by specifying an older client version with the
+`-client-version` flag.  For example:
+
+```bash
+go run ./go_client -client-version 1353
+```
+
+The value passed should be the desired `kVersionNumber`.  Older versions
+cause the server to send the associated images and sound archives before
+reconnecting.

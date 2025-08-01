@@ -41,6 +41,10 @@ func simpleEncrypt(data []byte) {
 	}
 }
 
+func encodeFullVersion(v int) uint32 {
+	return uint32(v) << 8
+}
+
 func hexDump(prefix string, data []byte) {
 	if !dumpTraffic {
 		return
@@ -553,36 +557,45 @@ func main() {
 	name := flag.String("name", "demo", "character name")
 	pass := flag.String("pass", "demo", "character password")
 	listDemo := flag.Bool("list-demo", false, "list available demo characters")
+	clientVer := flag.Int("client-version", 1440, "client version number (kVersionNumber)")
 	flag.BoolVar(&dumpTraffic, "dump", false, "dump raw network traffic")
 	flag.Parse()
 
 	autoDemo := *name == "demo" && *pass == "demo" && !*listDemo
 
-	// clientVersion corresponds to kFullVersionNumber from
+	// clientVersion corresponds to kVersionNumber from
 	// VersionNumber_cl.h in the C client. The server currently
-	// expects version 1440 with sub-version 0, so send that
-	//  number shifted left by 8 bits.
-	const clientVersion = 368640
+	// expects version 1440 with sub-version 0.
+	clientVersion := *clientVer
 	for {
 		imagesVersion, err := readKeyFileVersion("CL_Images")
+		imagesMissing := false
 		if err != nil {
 			if os.IsNotExist(err) {
 				log.Printf("CL_Images missing; will fetch from server")
 				imagesVersion = 0
+				imagesMissing = true
 			} else {
 				log.Printf("warning: %v", err)
-				imagesVersion = clientVersion
+				imagesVersion = encodeFullVersion(clientVersion)
 			}
 		}
 		soundsVersion, err := readKeyFileVersion("CL_Sounds")
+		soundsMissing := false
 		if err != nil {
 			if os.IsNotExist(err) {
 				log.Printf("CL_Sounds missing; will fetch from server")
 				soundsVersion = 0
+				soundsMissing = true
 			} else {
 				log.Printf("warning: %v", err)
-				soundsVersion = clientVersion
+				soundsVersion = encodeFullVersion(clientVersion)
 			}
+		}
+
+		sendVersion := clientVersion
+		if imagesMissing || soundsMissing {
+			sendVersion = clientVersion - 1
 		}
 
 		tcpConn, err := net.Dial("tcp", *host)
@@ -608,7 +621,7 @@ func main() {
 		if _, err := io.ReadFull(tcpConn, confirm[:]); err != nil {
 			log.Fatalf("confirm handshake: %v", err)
 		}
-		if err := sendIdentifiers(tcpConn, clientVersion, imagesVersion, soundsVersion); err != nil {
+		if err := sendIdentifiers(tcpConn, encodeFullVersion(sendVersion), imagesVersion, soundsVersion); err != nil {
 			log.Fatalf("send identifiers: %v", err)
 		}
 		fmt.Println("connected to", *host)
@@ -628,7 +641,7 @@ func main() {
 		challenge := msg[8 : 8+16]
 
 		if *listDemo {
-			names, err := requestCharList(tcpConn, "demo", "demo", challenge, clientVersion, imagesVersion, soundsVersion)
+			names, err := requestCharList(tcpConn, "demo", "demo", challenge, encodeFullVersion(sendVersion), imagesVersion, soundsVersion)
 			if err != nil {
 				log.Fatalf("list demo: %v", err)
 			}
@@ -639,7 +652,7 @@ func main() {
 		}
 
 		if autoDemo {
-			names, err := requestCharList(tcpConn, "demo", "demo", challenge, clientVersion, imagesVersion, soundsVersion)
+			names, err := requestCharList(tcpConn, "demo", "demo", challenge, encodeFullVersion(sendVersion), imagesVersion, soundsVersion)
 			if err != nil {
 				log.Fatalf("list demo: %v", err)
 			}
@@ -660,7 +673,7 @@ func main() {
 		buf := make([]byte, 16+len(*name)+1+len(answer))
 		binary.BigEndian.PutUint16(buf[0:2], kMsgLogOn)
 		binary.BigEndian.PutUint16(buf[2:4], 0)
-		binary.BigEndian.PutUint32(buf[4:8], clientVersion)
+		binary.BigEndian.PutUint32(buf[4:8], encodeFullVersion(sendVersion))
 		binary.BigEndian.PutUint32(buf[8:12], imagesVersion)
 		binary.BigEndian.PutUint32(buf[12:16], soundsVersion)
 		copy(buf[16:], []byte(*name))
@@ -720,7 +733,7 @@ func main() {
 			if _, err := io.ReadFull(tcpConn2, confirm[:]); err != nil {
 				log.Fatalf("confirm handshake: %v", err)
 			}
-			if err := sendIdentifiers(tcpConn2, clientVersion, imagesVersion, soundsVersion); err != nil {
+			if err := sendIdentifiers(tcpConn2, encodeFullVersion(sendVersion), imagesVersion, soundsVersion); err != nil {
 				log.Fatalf("send identifiers: %v", err)
 			}
 
