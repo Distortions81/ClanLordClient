@@ -17,7 +17,7 @@ import (
 
 func main() {
 	host := flag.String("host", "server.deltatao.com:5010", "server address")
-	clmov := flag.String("clmov", "", "play back a .clMov file")
+	clmov := flag.String("clmov", "test.clMov", "play back a .clMov file")
 	name := flag.String("name", "demo", "character name")
 	pass := flag.String("pass", "demo", "character password")
 	clientVer := flag.Int("client-version", 1440, "client version number (kVersionNumber)")
