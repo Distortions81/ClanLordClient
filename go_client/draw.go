@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
-	"strings"
 )
 
 // frameDescriptor describes an on-screen descriptor.
