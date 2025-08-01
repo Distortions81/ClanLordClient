@@ -187,11 +187,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			if onion && fade < 1 && prevImg != nil {
 				op1 := &ebiten.DrawImageOptions{}
 				op1.GeoM.Translate(float64(x-size/2), float64(y-size/2))
-				op1.ColorM.Scale(1-fade, 1-fade, 1-fade, 1-fade)
+				op1.ColorM.Scale(1, 1, 1, 1-fade)
 				screen.DrawImage(prevImg, op1)
 				op2 := &ebiten.DrawImageOptions{}
 				op2.GeoM.Translate(float64(x-size/2), float64(y-size/2))
-				op2.ColorM.Scale(fade, fade, fade, fade)
+				op2.ColorM.Scale(1, 1, 1, fade)
 				screen.DrawImage(img, op2)
 			} else {
 				op := &ebiten.DrawImageOptions{}
