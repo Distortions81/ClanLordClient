@@ -120,9 +120,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	pics := append([]framePicture(nil), state.pictures...)
 	prevPics := append([]framePicture(nil), state.prevPictures...)
 	matcher := newPicMatcher(prevPics)
+	mobilesMap := make(map[uint8]frameMobile, len(state.mobiles))
 	mobiles := make([]frameMobile, 0, len(state.mobiles))
-	for _, m := range state.mobiles {
+	for idx, m := range state.mobiles {
 		mobiles = append(mobiles, m)
+		mobilesMap[idx] = m
 	}
 	prevMobiles := make(map[uint8]frameMobile, len(state.prevMobiles))
 	for idx, m := range state.prevMobiles {
@@ -133,12 +135,23 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	stateMu.Unlock()
 
 	alpha := 1.0
+	camH := 0.0
+	camV := 0.0
 	if !curTime.IsZero() && curTime.After(prevTime) {
 		elapsed := time.Since(prevTime)
 		interval := curTime.Sub(prevTime)
 		alpha = float64(elapsed) / float64(interval)
 		if alpha < 0 {
 			alpha = 0
+		}
+		if p, ok := mobilesMap[playerIndex]; ok {
+			if pp, ok := prevMobiles[playerIndex]; ok {
+				camH = float64(pp.H)*(1-alpha) + float64(p.H)*alpha
+				camV = float64(pp.V)*(1-alpha) + float64(p.V)*alpha
+			} else {
+				camH = float64(p.H)
+				camV = float64(p.V)
+			}
 		}
 		if alpha > 1 {
 			alpha = 1
@@ -190,8 +203,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				v = float64(pm.V)*(1-alpha) + float64(m.V)*alpha
 			}
 		}
-		x := int(h) + fieldCenterX
-		y := int(v) + fieldCenterY
+		x := int(h-camH) + fieldCenterX
+		y := int(v-camV) + fieldCenterY
 		var img *ebiten.Image
 		if d, ok := descMap[m.Index]; ok {
 			img = loadMobileFrame(d.PictID, m.State)
@@ -221,8 +234,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				v = float64(pv)*(1-alpha) + float64(p.V)*alpha
 			}
 		}
-		x := int(h) + fieldCenterX
-		y := int(v) + fieldCenterY
+		x := int(h-camH) + fieldCenterX
+		y := int(v-camV) + fieldCenterY
 		if img := loadImage(p.PictID); img != nil {
 			op := &ebiten.DrawImageOptions{}
 			w, h := img.Bounds().Dx(), img.Bounds().Dy()
