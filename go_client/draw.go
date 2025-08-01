@@ -27,6 +27,8 @@ type frameMobile struct {
 	Colors uint8
 }
 
+const poseDead = 32
+
 // bitReader helps decode the packed picture fields.
 type bitReader struct {
 	data   []byte

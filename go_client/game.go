@@ -7,6 +7,7 @@ import (
 	"image/color"
 	"log"
 	"net"
+	"sort"
 	"sync"
 	"time"
 
@@ -66,20 +67,25 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 	stateMu.Unlock()
 
-	for _, p := range pics {
-		x := int(p.H) + 320
-		y := int(p.V) + 240
-		if img := loadImage(p.PictID); img != nil {
-			op := &ebiten.DrawImageOptions{}
-			op.GeoM.Translate(float64(x), float64(y))
-			screen.DrawImage(img, op)
-		} else {
-			ebitenutil.DrawRect(screen, float64(x)-2, float64(y)-2, 4, 4, color.RGBA{0, 0, 0xff, 0xff})
-		}
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%d", p.PictID), x+4, y-8)
-	}
+	sort.Slice(pics, func(i, j int) bool { return pics[i].V < pics[j].V })
 
+	dead := make([]frameMobile, 0, len(mobiles))
+	live := make([]frameMobile, 0, len(mobiles))
 	for _, m := range mobiles {
+		if m.State == poseDead {
+			dead = append(dead, m)
+		}
+		live = append(live, m)
+	}
+	sort.Slice(live, func(i, j int) bool { return live[i].V < live[j].V })
+
+	type textItem struct {
+		x, y int
+		txt  string
+	}
+	texts := []textItem{}
+
+	drawMobile := func(m frameMobile) {
 		x := int(m.H) + 320
 		y := int(m.V) + 240
 		var img *ebiten.Image
@@ -93,7 +99,41 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		} else {
 			ebitenutil.DrawRect(screen, float64(x)-3, float64(y)-3, 6, 6, color.RGBA{0xff, 0, 0, 0xff})
 		}
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%d", m.Index), x+6, y-8)
+		texts = append(texts, textItem{x + 6, y - 8, fmt.Sprintf("%d", m.Index)})
+	}
+
+	drawPicture := func(p framePicture) {
+		x := int(p.H) + 320
+		y := int(p.V) + 240
+		if img := loadImage(p.PictID); img != nil {
+			op := &ebiten.DrawImageOptions{}
+			op.GeoM.Translate(float64(x), float64(y))
+			screen.DrawImage(img, op)
+		} else {
+			ebitenutil.DrawRect(screen, float64(x)-2, float64(y)-2, 4, 4, color.RGBA{0, 0, 0xff, 0xff})
+		}
+		texts = append(texts, textItem{x + 4, y - 8, fmt.Sprintf("%d", p.PictID)})
+	}
+
+	for _, m := range dead {
+		drawMobile(m)
+	}
+
+	i, j := 0, 0
+	for i < len(live) || j < len(pics) {
+		if j >= len(pics) || (i < len(live) && live[i].V < pics[j].V) {
+			if live[i].State != poseDead {
+				drawMobile(live[i])
+			}
+			i++
+		} else {
+			drawPicture(pics[j])
+			j++
+		}
+	}
+
+	for _, t := range texts {
+		ebitenutil.DebugPrintAt(screen, t.txt, t.x, t.y)
 	}
 
 	lines := make([]string, 0, len(descs))
