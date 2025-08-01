@@ -63,7 +63,14 @@ func signExtend(v uint32, bits int) int16 {
 	return int16(int32(v))
 }
 
-// pictureShift returns the (dx, dy) movement that most pictures agree on
+// onScreen reports whether the picture lies within the visible playfield.
+func onScreen(p framePicture) bool {
+	x := int(p.H) + fieldCenterX
+	y := int(p.V) + fieldCenterY
+	return x >= 0 && x < gameAreaSizeX && y >= 0 && y < gameAreaSizeY
+}
+
+// pictureShift returns the (dx, dy) movement that most on-screen pictures agree on
 // between two consecutive frames. Pictures are matched by PictID (duplicates
 // included). The boolean result is false when no majority offset is found.
 func pictureShift(prev, cur []framePicture) (int, int, bool) {
@@ -75,8 +82,11 @@ func pictureShift(prev, cur []framePicture) (int, int, bool) {
 	counts := make(map[[2]int]int)
 	total := 0
 	for _, p := range prev {
+		if !onScreen(p) {
+			continue
+		}
 		for _, c := range cur {
-			if p.PictID != c.PictID {
+			if p.PictID != c.PictID || !onScreen(c) {
 				continue
 			}
 			dx := int(c.H) - int(p.H)
