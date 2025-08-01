@@ -84,6 +84,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		descMap[idx] = d
 	}
 	pics := append([]framePicture(nil), state.pictures...)
+	prevPics := append([]framePicture(nil), state.prevPictures...)
 	mobiles := make([]frameMobile, 0, len(state.mobiles))
 	for _, m := range state.mobiles {
 		mobiles = append(mobiles, m)
@@ -178,6 +179,13 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	drawPicture := func(p framePicture, idx int) {
 		h := float64(p.H)
 		v := float64(p.V)
+		if idx < len(prevPics) {
+			pp := prevPics[idx]
+			if pp.H != p.H || pp.V != p.V {
+				h = float64(pp.H)*(1-alpha) + float64(p.H)*alpha
+				v = float64(pp.V)*(1-alpha) + float64(p.V)*alpha
+			}
+		}
 		x := int(h-camH) + fieldCenterX
 		y := int(v-camV) + fieldCenterY
 		if img := loadImage(p.PictID); img != nil {
