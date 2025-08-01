@@ -71,10 +71,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	for _, m := range state.mobiles {
 		mobiles = append(mobiles, m)
 	}
+	curPlayer, haveCurPlayer := state.mobiles[playerIndex]
 	prevMobiles := make(map[uint8]frameMobile, len(state.prevMobiles))
 	for idx, m := range state.prevMobiles {
 		prevMobiles[idx] = m
 	}
+	prevPlayer, havePrevPlayer := state.prevMobiles[playerIndex]
 	prevTime := state.prevTime
 	curTime := state.curTime
 	stateMu.Unlock()
@@ -90,6 +92,15 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		if alpha > 1 {
 			alpha = 1
 		}
+	}
+
+	// compute screen offset based on player movement
+	offH, offV := 0.0, 0.0
+	if haveCurPlayer && havePrevPlayer {
+		dH := float64(curPlayer.H - prevPlayer.H)
+		dV := float64(curPlayer.V - prevPlayer.V)
+		offH = dH * (1 - alpha)
+		offV = dV * (1 - alpha)
 	}
 
 	sort.Slice(pics, func(i, j int) bool {
@@ -144,9 +155,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		texts = append(texts, textItem{x + 6, y - 8, fmt.Sprintf("%d", m.Index)})
 	}
 
-	drawPicture := func(p framePicture) {
-		x := int(p.H) + fieldCenterX
-		y := int(p.V) + fieldCenterY
+	drawPicture := func(p framePicture, offH, offV float64) {
+		h := float64(p.H) + offH
+		v := float64(p.V) + offV
+		x := int(h) + fieldCenterX
+		y := int(v) + fieldCenterY
 		if img := loadImage(p.PictID); img != nil {
 			op := &ebiten.DrawImageOptions{}
 			w, h := img.Bounds().Dx(), img.Bounds().Dy()
@@ -179,7 +192,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// draw pictures below mobiles
 	for _, p := range negPics {
-		drawPicture(p)
+		drawPicture(p, offH, offV)
 	}
 
 	// draw fallen mobiles before merging
@@ -210,13 +223,13 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			}
 			i++
 		} else {
-			drawPicture(zeroPics[j])
+			drawPicture(zeroPics[j], offH, offV)
 			j++
 		}
 	}
 
 	for _, p := range posPics {
-		drawPicture(p)
+		drawPicture(p, offH, offV)
 	}
 
 	/*

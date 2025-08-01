@@ -197,6 +197,7 @@ func parseDrawState(data []byte) bool {
 	if again > len(state.pictures) {
 		again = len(state.pictures)
 	}
+
 	newPics := make([]framePicture, again+pictCount)
 	copy(newPics, state.pictures[:again])
 	copy(newPics[again:], pics)
