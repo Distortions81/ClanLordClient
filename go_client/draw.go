@@ -71,6 +71,7 @@ func signExtend(v uint32, bits int) int16 {
 // is found. Pictures are matched by PictID; duplicates are all considered.
 func pictureShift(prev, cur []framePicture) (int, int, bool) {
 	if len(prev) == 0 || len(cur) == 0 {
+		dlog("pictureShift: no data prev=%d cur=%d", len(prev), len(cur))
 		return 0, 0, false
 	}
 
@@ -88,6 +89,7 @@ func pictureShift(prev, cur []framePicture) (int, int, bool) {
 		}
 	}
 	if total == 0 {
+		dlog("pictureShift: no matching pairs")
 		return 0, 0, false
 	}
 
@@ -99,7 +101,9 @@ func pictureShift(prev, cur []framePicture) (int, int, bool) {
 			bestCount = c
 		}
 	}
+	dlog("pictureShift: counts=%v best=%v count=%d total=%d", counts, best, bestCount, total)
 	if bestCount*2 <= total {
+		dlog("pictureShift: no majority best=%d total=%d", bestCount, total)
 		return 0, 0, false
 	}
 	return best[0], best[1], true
@@ -245,6 +249,7 @@ func parseDrawState(data []byte) bool {
 	copy(newPics[again:], pics)
 	if interp {
 		dx, dy, ok := pictureShift(prevPics, newPics)
+		dlog("interp pictures again=%d prev=%d cur=%d shift=(%d,%d) ok=%t", again, len(prevPics), len(newPics), dx, dy, ok)
 		if ok {
 			state.picShiftX = dx
 			state.picShiftY = dy
@@ -273,6 +278,7 @@ func parseDrawState(data []byte) bool {
 				interval = d
 			}
 		}
+		dlog("interp mobiles interval=%s", interval)
 		state.prevTime = time.Now()
 		state.curTime = state.prevTime.Add(interval)
 	}

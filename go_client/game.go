@@ -104,6 +104,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			alpha = 1
 		}
 	}
+	dlog("Draw alpha=%.2f shift=(%d,%d) pics=%d", alpha, picShiftX, picShiftY, len(pics))
 
 	sort.Slice(pics, func(i, j int) bool {
 		pi := 0
