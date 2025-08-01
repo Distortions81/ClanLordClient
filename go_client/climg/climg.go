@@ -293,6 +293,10 @@ func (c *CLImages) Get(id uint32) *ebiten.Image {
 		if idx == 0 && transparent {
 			a = 0
 		}
+		// Ebiten expects premultiplied alpha values.
+		r = uint8(int(r) * int(a) / 255)
+		g = uint8(int(g) * int(a) / 255)
+		b = uint8(int(b) * int(a) / 255)
 		img.SetRGBA(i%width, i/width, color.RGBA{r, g, b, a})
 	}
 
