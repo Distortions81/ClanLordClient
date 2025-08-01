@@ -15,15 +15,23 @@ import (
 )
 
 type dataLocation struct {
-	offset     uint32
-	size       uint32
-	entryType  uint32
-	id         uint32
-	colorBytes []uint16
-	imageID    uint32
-	colorID    uint32
-	flags      uint32
-	numFrames  uint16
+	offset         uint32
+	size           uint32
+	entryType      uint32
+	id             uint32
+	colorBytes     []uint16
+	version        uint32
+	imageID        uint32
+	colorID        uint32
+	checksum       uint32
+	flags          uint32
+	unusedFlags    uint32
+	unusedFlags2   uint32
+	lightingID     int32
+	plane          int16
+	numFrames      int16
+	numAnims       int16
+	animFrameTable [16]int16
 }
 
 type CLImages struct {
@@ -107,8 +115,7 @@ func Load(path string) (*CLImages, error) {
 		if _, err := r.Seek(int64(ref.offset), io.SeekStart); err != nil {
 			return nil, err
 		}
-		var version uint32
-		if err := binary.Read(r, binary.BigEndian, &version); err != nil {
+		if err := binary.Read(r, binary.BigEndian, &ref.version); err != nil {
 			return nil, err
 		}
 		if err := binary.Read(r, binary.BigEndian, &ref.imageID); err != nil {
@@ -117,35 +124,36 @@ func Load(path string) (*CLImages, error) {
 		if err := binary.Read(r, binary.BigEndian, &ref.colorID); err != nil {
 			return nil, err
 		}
-		var checksum uint32
-		if err := binary.Read(r, binary.BigEndian, &checksum); err != nil {
+		if err := binary.Read(r, binary.BigEndian, &ref.checksum); err != nil {
 			return nil, err
 		}
 		if err := binary.Read(r, binary.BigEndian, &ref.flags); err != nil {
 			return nil, err
 		}
-		var unused uint32
-		if err := binary.Read(r, binary.BigEndian, &unused); err != nil {
+		if err := binary.Read(r, binary.BigEndian, &ref.unusedFlags); err != nil {
 			return nil, err
 		}
-		if err := binary.Read(r, binary.BigEndian, &unused); err != nil {
+		if err := binary.Read(r, binary.BigEndian, &ref.unusedFlags2); err != nil {
 			return nil, err
 		}
-		if err := binary.Read(r, binary.BigEndian, &unused); err != nil {
+		if err := binary.Read(r, binary.BigEndian, &ref.lightingID); err != nil {
 			return nil, err
 		}
-		var plane int16
-		if err := binary.Read(r, binary.BigEndian, &plane); err != nil {
+		if err := binary.Read(r, binary.BigEndian, &ref.plane); err != nil {
 			return nil, err
 		}
 		if err := binary.Read(r, binary.BigEndian, &ref.numFrames); err != nil {
 			return nil, err
 		}
-		var numAnims int16
-		if err := binary.Read(r, binary.BigEndian, &numAnims); err != nil {
+		if err := binary.Read(r, binary.BigEndian, &ref.numAnims); err != nil {
 			return nil, err
 		}
-		for i := int16(0); i < numAnims; i++ {
+		for i := int16(0); i < ref.numAnims && i < 16; i++ {
+			if err := binary.Read(r, binary.BigEndian, &ref.animFrameTable[i]); err != nil {
+				return nil, err
+			}
+		}
+		for i := ref.numAnims; i < 16; i++ {
 			var tmp int16
 			if err := binary.Read(r, binary.BigEndian, &tmp); err != nil {
 				return nil, err
