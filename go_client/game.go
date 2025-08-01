@@ -28,19 +28,23 @@ var interp bool
 
 // drawState tracks information needed by the Ebiten renderer.
 type drawState struct {
-	descriptors map[uint8]frameDescriptor
-	pictures    []framePicture
-	mobiles     map[uint8]frameMobile
-	prevMobiles map[uint8]frameMobile
-	prevTime    time.Time
-	curTime     time.Time
+	descriptors  map[uint8]frameDescriptor
+	pictures     []framePicture
+	prevPictures []framePicture
+	picShiftX    int
+	picShiftY    int
+	mobiles      map[uint8]frameMobile
+	prevMobiles  map[uint8]frameMobile
+	prevTime     time.Time
+	curTime      time.Time
 }
 
 var (
 	state = drawState{
-		descriptors: make(map[uint8]frameDescriptor),
-		mobiles:     make(map[uint8]frameMobile),
-		prevMobiles: make(map[uint8]frameMobile),
+		descriptors:  make(map[uint8]frameDescriptor),
+		prevPictures: nil,
+		mobiles:      make(map[uint8]frameMobile),
+		prevMobiles:  make(map[uint8]frameMobile),
 	}
 	stateMu sync.Mutex
 )
@@ -71,6 +75,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		descMap[idx] = d
 	}
 	pics := append([]framePicture(nil), state.pictures...)
+	picShiftX := state.picShiftX
+	picShiftY := state.picShiftY
 	mobiles := make([]frameMobile, 0, len(state.mobiles))
 	for _, m := range state.mobiles {
 		mobiles = append(mobiles, m)
@@ -154,8 +160,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	drawPicture := func(p framePicture) {
-		x := int(p.H) + fieldCenterX
-		y := int(p.V) + fieldCenterY
+		offX := float64(picShiftX) * (1 - alpha)
+		offY := float64(picShiftY) * (1 - alpha)
+		x := int(math.Round(float64(p.H)+offX)) + fieldCenterX
+		y := int(math.Round(float64(p.V)+offY)) + fieldCenterY
 		if img := loadImage(p.PictID); img != nil {
 			op := &ebiten.DrawImageOptions{}
 			w, h := img.Bounds().Dx(), img.Bounds().Dy()

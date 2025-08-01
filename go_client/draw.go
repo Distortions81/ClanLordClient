@@ -63,6 +63,40 @@ func signExtend(v uint32, bits int) int16 {
 	return int16(int32(v))
 }
 
+// pictureShift returns the most common (dx, dy) offset between matching
+// pictures in prev and cur. The boolean return is false when no majority is
+// found.
+func pictureShift(prev, cur []framePicture) (int, int, bool) {
+	n := len(prev)
+	if len(cur) < n {
+		n = len(cur)
+	}
+	if n == 0 {
+		return 0, 0, false
+	}
+	counts := make(map[[2]int]int)
+	for i := 0; i < n; i++ {
+		if prev[i].PictID != cur[i].PictID {
+			continue
+		}
+		dx := int(cur[i].H) - int(prev[i].H)
+		dy := int(cur[i].V) - int(prev[i].V)
+		counts[[2]int{dx, dy}]++
+	}
+	best := [2]int{}
+	bestCount := 0
+	for k, c := range counts {
+		if c > bestCount {
+			best = k
+			bestCount = c
+		}
+	}
+	if bestCount*2 <= n {
+		return 0, 0, false
+	}
+	return best[0], best[1], true
+}
+
 // handleDrawState decodes the packed draw state message.
 func handleDrawState(m []byte) {
 	if len(m) < 11 { // 2 byte tag + 9 bytes minimum
@@ -193,13 +227,25 @@ func parseDrawState(data []byte) bool {
 	}
 
 	// retain previously drawn pictures when the packet specifies pictAgain
+	prevPics := state.pictures
 	again := pictAgain
-	if again > len(state.pictures) {
-		again = len(state.pictures)
+	if again > len(prevPics) {
+		again = len(prevPics)
 	}
 	newPics := make([]framePicture, again+pictCount)
-	copy(newPics, state.pictures[:again])
+	copy(newPics, prevPics[:again])
 	copy(newPics[again:], pics)
+	if interp {
+		dx, dy, ok := pictureShift(prevPics, newPics)
+		if ok {
+			state.picShiftX = dx
+			state.picShiftY = dy
+		} else {
+			state.picShiftX = 0
+			state.picShiftY = 0
+		}
+		state.prevPictures = prevPics
+	}
 	state.pictures = newPics
 
 	if interp {
