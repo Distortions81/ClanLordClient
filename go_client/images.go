@@ -10,8 +10,9 @@ import (
 )
 
 // imageCache lazily loads images from the img directory. The files are
-// expected to be named as <id>.png where <id> matches the picture ID sent by
-// the server. Loading errors are logged via dlog and result in a nil image.
+// expected to be named as id-%04d.png where %04d is a zero padded picture ID
+// sent by the server. Loading errors are logged via dlog and result in a nil
+// image.
 var (
 	imageCache = make(map[uint16]*ebiten.Image)
 	imageMu    sync.Mutex
@@ -25,7 +26,7 @@ func loadImage(id uint16) *ebiten.Image {
 	if img, ok := imageCache[id]; ok {
 		return img
 	}
-	path := fmt.Sprintf("img/%d.png", id)
+	path := fmt.Sprintf("img/id-%04d.png", id)
 	img, _, err := ebitenutil.NewImageFromFile(path)
 	if err != nil {
 		dlog("load %s: %v", path, err)
