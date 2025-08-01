@@ -61,7 +61,7 @@ func main() {
 					handleDrawState(m)
 				}
 				if txt := decodeMessage(m); txt != "" {
-					fmt.Println(txt)
+					//fmt.Println(txt)
 				}
 				select {
 				case <-ticker.C:
