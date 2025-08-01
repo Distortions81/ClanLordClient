@@ -1,0 +1,179 @@
+package main
+
+import (
+	"bytes"
+	"encoding/binary"
+	"fmt"
+)
+
+// frameDescriptor describes an on-screen descriptor.
+type frameDescriptor struct {
+	Index  uint8
+	Type   uint8
+	PictID uint16
+	Name   string
+	Colors []byte
+}
+
+type framePicture struct {
+	PictID uint16
+	H, V   int16
+}
+
+type frameMobile struct {
+	Index  uint8
+	State  uint16
+	V, H   int16
+	Colors uint8
+}
+
+// bitReader helps decode the packed picture fields.
+type bitReader struct {
+	data   []byte
+	bitPos int
+}
+
+func (br *bitReader) readBits(n int) uint32 {
+	var v uint32
+	for n > 0 {
+		if br.bitPos/8 >= len(br.data) {
+			return v
+		}
+		b := br.data[br.bitPos/8]
+		remain := 8 - br.bitPos%8
+		take := remain
+		if take > n {
+			take = n
+		}
+		shift := remain - take
+		v = (v << take) | uint32((b>>shift)&((1<<take)-1))
+		br.bitPos += take
+		n -= take
+	}
+	return v
+}
+
+func signExtend(v uint32, bits int) int16 {
+	if v&(1<<(bits-1)) != 0 {
+		v |= ^uint32(0) << bits
+	}
+	return int16(int32(v))
+}
+
+// handleDrawState decodes the packed draw state message.
+func handleDrawState(m []byte) {
+	if len(m) < 25 { // 16 byte header + 9 bytes minimum
+		return
+	}
+	data := append([]byte(nil), m[16:]...)
+	simpleEncrypt(data)
+	if len(data) < 9 {
+		return
+	}
+
+	ackCmd := data[0]
+	ackFrame = int32(binary.BigEndian.Uint32(data[1:5]))
+	resendFrame = int32(binary.BigEndian.Uint32(data[5:9]))
+	p := 9
+
+	if len(data) <= p {
+		return
+	}
+	descCount := int(data[p])
+	p++
+	descs := make([]frameDescriptor, 0, descCount)
+	for i := 0; i < descCount && p < len(data); i++ {
+		if p+4 > len(data) {
+			return
+		}
+		d := frameDescriptor{}
+		d.Index = data[p]
+		d.Type = data[p+1]
+		d.PictID = binary.BigEndian.Uint16(data[p+2:])
+		p += 4
+		if idx := bytes.IndexByte(data[p:], 0); idx >= 0 {
+			d.Name = string(data[p : p+idx])
+			p += idx + 1
+		} else {
+			return
+		}
+		if p >= len(data) {
+			return
+		}
+		cnt := int(data[p])
+		p++
+		if p+cnt > len(data) {
+			return
+		}
+		d.Colors = append([]byte(nil), data[p:p+cnt]...)
+		p += cnt
+		descs = append(descs, d)
+	}
+
+	if len(data) < p+7 {
+		return
+	}
+	p += 7 // skip status fields
+
+	if len(data) <= p {
+		return
+	}
+	pictCount := int(data[p])
+	p++
+	pictAgain := 0
+	if pictCount == 255 {
+		if len(data) < p+2 {
+			return
+		}
+		pictAgain = int(data[p])
+		pictCount = int(data[p+1])
+		p += 2
+	}
+
+	pics := make([]framePicture, 0, pictAgain+pictCount)
+	br := bitReader{data: data[p:]}
+	for i := 0; i < pictCount; i++ {
+		id := uint16(br.readBits(14))
+		h := signExtend(br.readBits(11), 11)
+		v := signExtend(br.readBits(11), 11)
+		pics = append(pics, framePicture{PictID: id, H: h, V: v})
+	}
+	p += br.bitPos / 8
+	if br.bitPos%8 != 0 {
+		p++
+	}
+
+	if len(data) <= p {
+		return
+	}
+	mobileCount := int(data[p])
+	p++
+	mobiles := make([]frameMobile, 0, mobileCount)
+	for i := 0; i < mobileCount && p+8 <= len(data); i++ {
+		m := frameMobile{}
+		m.Index = data[p]
+		m.State = binary.BigEndian.Uint16(data[p+1:])
+		m.V = int16(binary.BigEndian.Uint16(data[p+3:]))
+		m.H = int16(binary.BigEndian.Uint16(data[p+5:]))
+		m.Colors = data[p+7]
+		p += 8
+		mobiles = append(mobiles, m)
+	}
+
+	stateData := data[p:]
+
+	stateMu.Lock()
+	state.descriptors = descs
+	state.pictures = pics
+	state.mobiles = mobiles
+	stateMu.Unlock()
+
+	dlog("draw state cmd=%d ack=%d resend=%d desc=%d pict=%d again=%d mobile=%d state=%d",
+		ackCmd, ackFrame, resendFrame, len(descs), len(pics), pictAgain, len(mobiles), len(stateData))
+
+	if txt := decodeBEPP(stateData); txt != "" {
+		fmt.Println(txt)
+	} else if txt := decodeBubble(stateData); txt != "" {
+		fmt.Println(txt)
+	}
+}
