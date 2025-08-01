@@ -26,6 +26,12 @@ func main() {
 	flag.BoolVar(&debug, "debug", true, "enable debug logging")
 	flag.Parse()
 
+	var imgErr error
+	clImages, imgErr = climg.Load("CL_Images")
+	if imgErr != nil {
+		log.Printf("load CL_Images: %v", imgErr)
+	}
+
 	if *clmov != "" {
 		frames, err := parseMovie(*clmov)
 		if err != nil {
@@ -71,12 +77,6 @@ func main() {
 	}
 
 	autoDemo := *name == "demo" && *pass == "demo"
-
-	var imgErr error
-	clImages, imgErr = climg.Load("CL_Images")
-	if imgErr != nil {
-		log.Printf("load CL_Images: %v", imgErr)
-	}
 
 	clientVersion := *clientVer
 	for {
