@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"strings"
 )
 
@@ -211,17 +210,7 @@ func parseDrawState(data []byte) bool {
 		ackCmd, ackFrame, resendFrame, len(descs), len(pics), pictAgain, len(mobiles), len(stateData))
 
 	if idx := bytes.IndexByte(stateData, 0); idx >= 0 {
-		msgData := stateData[:idx]
-		if txt := decodeBEPP(msgData); txt != "" {
-			fmt.Println(txt)
-			addMessage(txt)
-		} else if txt := decodeBubble(msgData); txt != "" {
-			fmt.Println(txt)
-			addMessage(txt)
-		} else if s := strings.TrimSpace(decodeMacRoman(msgData)); s != "" {
-			fmt.Println(s)
-			addMessage(s)
-		}
+		handleInfoText(stateData[:idx])
 	}
 	return true
 }
