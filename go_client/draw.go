@@ -202,24 +202,26 @@ func parseDrawState(data []byte) bool {
 	copy(newPics[again:], pics)
 	state.pictures = newPics
 
-	// save previous mobile positions for interpolation
-	if state.prevMobiles == nil {
-		state.prevMobiles = make(map[uint8]frameMobile)
-	}
-	// copy current mobiles to prevMobiles before replacing
-	state.prevMobiles = make(map[uint8]frameMobile, len(state.mobiles))
-	for idx, m := range state.mobiles {
-		state.prevMobiles[idx] = m
-	}
-	const defaultInterval = time.Second / 5
-	interval := defaultInterval
-	if !state.prevTime.IsZero() && !state.curTime.IsZero() {
-		if d := state.curTime.Sub(state.prevTime); d > 0 {
-			interval = d
+	if interp {
+		// save previous mobile positions for interpolation
+		if state.prevMobiles == nil {
+			state.prevMobiles = make(map[uint8]frameMobile)
 		}
+		// copy current mobiles to prevMobiles before replacing
+		state.prevMobiles = make(map[uint8]frameMobile, len(state.mobiles))
+		for idx, m := range state.mobiles {
+			state.prevMobiles[idx] = m
+		}
+		const defaultInterval = time.Second / 5
+		interval := defaultInterval
+		if !state.prevTime.IsZero() && !state.curTime.IsZero() {
+			if d := state.curTime.Sub(state.prevTime); d > 0 {
+				interval = d
+			}
+		}
+		state.prevTime = time.Now()
+		state.curTime = state.prevTime.Add(interval)
 	}
-	state.prevTime = time.Now()
-	state.curTime = state.prevTime.Add(interval)
 
 	if state.mobiles == nil {
 		state.mobiles = make(map[uint8]frameMobile)

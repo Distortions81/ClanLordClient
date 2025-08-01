@@ -24,6 +24,7 @@ var mouseDown bool
 
 var gameCtx context.Context
 var scale int = 3
+var interp bool
 
 // drawState tracks information needed by the Ebiten renderer.
 type drawState struct {
@@ -74,16 +75,19 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	for _, m := range state.mobiles {
 		mobiles = append(mobiles, m)
 	}
-	prevMobiles := make(map[uint8]frameMobile, len(state.prevMobiles))
-	for idx, m := range state.prevMobiles {
-		prevMobiles[idx] = m
+	var prevMobiles map[uint8]frameMobile
+	if interp {
+		prevMobiles = make(map[uint8]frameMobile, len(state.prevMobiles))
+		for idx, m := range state.prevMobiles {
+			prevMobiles[idx] = m
+		}
 	}
 	prevTime := state.prevTime
 	curTime := state.curTime
 	stateMu.Unlock()
 
 	alpha := 1.0
-	if !curTime.IsZero() && curTime.After(prevTime) {
+	if interp && !curTime.IsZero() && curTime.After(prevTime) {
 		elapsed := time.Since(prevTime)
 		interval := curTime.Sub(prevTime)
 		alpha = float64(elapsed) / float64(interval)
@@ -126,9 +130,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	drawMobile := func(m frameMobile) {
 		h := float64(m.H)
 		v := float64(m.V)
-		if pm, ok := prevMobiles[m.Index]; ok {
-			h = float64(pm.H)*(1-alpha) + float64(m.H)*alpha
-			v = float64(pm.V)*(1-alpha) + float64(m.V)*alpha
+		if interp {
+			if pm, ok := prevMobiles[m.Index]; ok {
+				h = float64(pm.H)*(1-alpha) + float64(m.H)*alpha
+				v = float64(pm.V)*(1-alpha) + float64(m.V)*alpha
+			}
 		}
 		x := int(math.Round(h)) + fieldCenterX
 		y := int(math.Round(v)) + fieldCenterY
