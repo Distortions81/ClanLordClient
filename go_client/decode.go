@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"strings"
 
 	"golang.org/x/text/encoding/charmap"
 )
@@ -91,7 +92,10 @@ func decodeMessage(m []byte) string {
 		data = data[:i]
 	}
 	if len(data) > 0 {
-		return decodeMacRoman(data)
+		txt := decodeMacRoman(data)
+		if len([]rune(strings.TrimSpace(txt))) >= 4 {
+			return txt
+		}
 	}
 
 	simpleEncrypt(data)
@@ -105,7 +109,10 @@ func decodeMessage(m []byte) string {
 		data = data[:i]
 	}
 	if len(data) > 0 {
-		return decodeMacRoman(data)
+		txt := decodeMacRoman(data)
+		if len([]rune(strings.TrimSpace(txt))) >= 4 {
+			return txt
+		}
 	}
 	return ""
 }
