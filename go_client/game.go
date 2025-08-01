@@ -15,6 +15,9 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
+const gameAreaSizeX, gameAreaSizeY = 547, 540
+const offX, offY = (gameAreaSizeX / 3) - 8, (gameAreaSizeX / 3) - 8
+
 var mouseX, mouseY uint16
 
 var gameCtx context.Context
@@ -85,8 +88,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	texts := []textItem{}
 
 	drawMobile := func(m frameMobile) {
-		x := int(m.H) + 320
-		y := int(m.V) + 240
+		x := int(m.H) + offX
+		y := int(m.V) + offY
 		var img *ebiten.Image
 		if d, ok := descMap[m.Index]; ok {
 			img = loadImage(d.PictID)
@@ -102,8 +105,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	drawPicture := func(p framePicture) {
-		x := int(p.H) + 320
-		y := int(p.V) + 240
+		x := int(p.H) + offX
+		y := int(p.V) + offY
 		if img := loadImage(p.PictID); img != nil {
 			op := &ebiten.DrawImageOptions{}
 			op.GeoM.Translate(float64(x), float64(y))
@@ -131,16 +134,18 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 	}
 
-	for _, t := range texts {
-		ebitenutil.DebugPrintAt(screen, t.txt, t.x, t.y)
-	}
+	/*
+		for _, t := range texts {
+			ebitenutil.DebugPrintAt(screen, t.txt, t.x, t.y)
+		}
+	*/
 
 	lines := make([]string, 0, len(descs))
 	for _, d := range descs {
 		lines = append(lines, fmt.Sprintf("%d:%s id=%d t=%d", d.Index, d.Name, d.PictID, d.Type))
 	}
 	//ebitenutil.DebugPrintAt(screen, strings.Join(lines, "\n"), 4, 4)
-	//ebitenutil.DebugPrintAt(screen, fmt.Sprintf("desc:%d pict:%d mobile:%d", len(descs), len(pics), len(mobiles)), 490, 460)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("desc:%d pict:%d mobile:%d", len(descs), len(pics), len(mobiles)), 490, 460)
 
 	msgs := getMessages()
 	startY := 480 - 12*len(msgs) - 6
@@ -150,12 +155,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return 640, 480
+	return gameAreaSizeX, gameAreaSizeY
 }
 
 func runGame(ctx context.Context) {
 	gameCtx = ctx
-	ebiten.SetWindowSize(640*scale, 480*scale)
+	ebiten.SetWindowSize(gameAreaSizeX*scale, gameAreaSizeY*scale)
 	ebiten.SetWindowTitle("Draw State")
 	if err := ebiten.RunGame(&Game{}); err != nil {
 		log.Printf("ebiten: %v", err)
