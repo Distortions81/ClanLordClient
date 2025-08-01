@@ -27,6 +27,7 @@ func main() {
 	flag.BoolVar(&debug, "debug", true, "enable debug logging")
 	flag.IntVar(&scale, "scale", 2, "screen scale factor")
 	flag.BoolVar(&interp, "interp", false, "enable movement interpolation")
+	flag.BoolVar(&onion, "onion", false, "cross-fade sprite animations")
 	flag.Parse()
 
 	var imgErr error
