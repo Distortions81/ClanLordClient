@@ -23,6 +23,7 @@ type dataLocation struct {
 	imageID    uint32
 	colorID    uint32
 	flags      uint32
+	numFrames  uint16
 }
 
 type CLImages struct {
@@ -122,6 +123,33 @@ func Load(path string) (*CLImages, error) {
 		}
 		if err := binary.Read(r, binary.BigEndian, &ref.flags); err != nil {
 			return nil, err
+		}
+		var unused uint32
+		if err := binary.Read(r, binary.BigEndian, &unused); err != nil {
+			return nil, err
+		}
+		if err := binary.Read(r, binary.BigEndian, &unused); err != nil {
+			return nil, err
+		}
+		if err := binary.Read(r, binary.BigEndian, &unused); err != nil {
+			return nil, err
+		}
+		var plane int16
+		if err := binary.Read(r, binary.BigEndian, &plane); err != nil {
+			return nil, err
+		}
+		if err := binary.Read(r, binary.BigEndian, &ref.numFrames); err != nil {
+			return nil, err
+		}
+		var numAnims int16
+		if err := binary.Read(r, binary.BigEndian, &numAnims); err != nil {
+			return nil, err
+		}
+		for i := int16(0); i < numAnims; i++ {
+			var tmp int16
+			if err := binary.Read(r, binary.BigEndian, &tmp); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -273,4 +301,13 @@ func (c *CLImages) Get(id uint32) *ebiten.Image {
 	c.cache[id] = eimg
 	c.mu.Unlock()
 	return eimg
+}
+
+// NumFrames returns the number of animation frames for the given image ID.
+// If unknown, it returns 1.
+func (c *CLImages) NumFrames(id uint32) int {
+	if ref := c.idrefs[id]; ref != nil && ref.numFrames > 0 {
+		return int(ref.numFrames)
+	}
+	return 1
 }
