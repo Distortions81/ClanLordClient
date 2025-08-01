@@ -23,13 +23,16 @@ var gameCtx context.Context
 
 // drawState tracks information needed by the Ebiten renderer.
 type drawState struct {
-	descriptors []frameDescriptor
+	descriptors map[uint8]frameDescriptor
 	pictures    []framePicture
-	mobiles     []frameMobile
+	mobiles     map[uint8]frameMobile
 }
 
 var (
-	state   drawState
+	state = drawState{
+		descriptors: make(map[uint8]frameDescriptor),
+		mobiles:     make(map[uint8]frameMobile),
+	}
 	stateMu sync.Mutex
 )
 
@@ -48,9 +51,15 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	screen.Fill(color.RGBA{0xe0, 0xe0, 0xe0, 0xff})
 
 	stateMu.Lock()
-	descs := append([]frameDescriptor(nil), state.descriptors...)
+	descs := make([]frameDescriptor, 0, len(state.descriptors))
+	for _, d := range state.descriptors {
+		descs = append(descs, d)
+	}
 	pics := append([]framePicture(nil), state.pictures...)
-	mobiles := append([]frameMobile(nil), state.mobiles...)
+	mobiles := make([]frameMobile, 0, len(state.mobiles))
+	for _, m := range state.mobiles {
+		mobiles = append(mobiles, m)
+	}
 	stateMu.Unlock()
 
 	for _, p := range pics {

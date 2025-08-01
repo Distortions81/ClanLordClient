@@ -179,9 +179,19 @@ func parseDrawState(data []byte) bool {
 	stateData := data[p:]
 
 	stateMu.Lock()
-	state.descriptors = descs
+	if state.descriptors == nil {
+		state.descriptors = make(map[uint8]frameDescriptor)
+	}
+	for _, d := range descs {
+		state.descriptors[d.Index] = d
+	}
 	state.pictures = pics
-	state.mobiles = mobiles
+	if state.mobiles == nil {
+		state.mobiles = make(map[uint8]frameMobile)
+	}
+	for _, m := range mobiles {
+		state.mobiles[m.Index] = m
+	}
 	stateMu.Unlock()
 
 	dlog("draw state cmd=%d ack=%d resend=%d desc=%d pict=%d again=%d mobile=%d state=%d",
