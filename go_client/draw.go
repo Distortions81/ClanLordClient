@@ -65,10 +65,24 @@ func handleDrawState(m []byte) {
 	if len(m) < 25 { // 16 byte header + 9 bytes minimum
 		return
 	}
+	// Incoming draw state packets appear unencrypted.  Try decoding the
+	// payload as-is first and fall back to the simple XOR scheme if that
+	// fails.  The first 16 bytes are a header not currently interpreted.
 	data := append([]byte(nil), m[16:]...)
-	simpleEncrypt(data)
-	if len(data) < 9 {
+
+	if parseDrawState(data) {
 		return
+	}
+
+	simpleEncrypt(data)
+	parseDrawState(data)
+}
+
+// parseDrawState decodes the draw state data. It returns false when the packet
+// appears malformed.
+func parseDrawState(data []byte) bool {
+	if len(data) < 9 {
+		return false
 	}
 
 	ackCmd := data[0]
@@ -77,14 +91,14 @@ func handleDrawState(m []byte) {
 	p := 9
 
 	if len(data) <= p {
-		return
+		return false
 	}
 	descCount := int(data[p])
 	p++
 	descs := make([]frameDescriptor, 0, descCount)
 	for i := 0; i < descCount && p < len(data); i++ {
 		if p+4 > len(data) {
-			return
+			return false
 		}
 		d := frameDescriptor{}
 		d.Index = data[p]
@@ -95,15 +109,15 @@ func handleDrawState(m []byte) {
 			d.Name = string(data[p : p+idx])
 			p += idx + 1
 		} else {
-			return
+			return false
 		}
 		if p >= len(data) {
-			return
+			return false
 		}
 		cnt := int(data[p])
 		p++
 		if p+cnt > len(data) {
-			return
+			return false
 		}
 		d.Colors = append([]byte(nil), data[p:p+cnt]...)
 		p += cnt
@@ -111,19 +125,19 @@ func handleDrawState(m []byte) {
 	}
 
 	if len(data) < p+7 {
-		return
+		return false
 	}
 	p += 7 // skip status fields
 
 	if len(data) <= p {
-		return
+		return false
 	}
 	pictCount := int(data[p])
 	p++
 	pictAgain := 0
 	if pictCount == 255 {
 		if len(data) < p+2 {
-			return
+			return false
 		}
 		pictAgain = int(data[p])
 		pictCount = int(data[p+1])
@@ -144,7 +158,7 @@ func handleDrawState(m []byte) {
 	}
 
 	if len(data) <= p {
-		return
+		return false
 	}
 	mobileCount := int(data[p])
 	p++
@@ -176,4 +190,5 @@ func handleDrawState(m []byte) {
 	} else if txt := decodeBubble(stateData); txt != "" {
 		fmt.Println(txt)
 	}
+	return true
 }
