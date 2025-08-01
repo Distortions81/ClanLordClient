@@ -75,7 +75,9 @@ func handleDrawState(m []byte) {
 	}
 
 	simpleEncrypt(data)
-	parseDrawState(data)
+	if !parseDrawState(data) {
+		dlog("failed to parse draw state: % x", data[:16])
+	}
 }
 
 // parseDrawState decodes the draw state data. It returns false when the packet
