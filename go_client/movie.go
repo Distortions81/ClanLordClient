@@ -45,7 +45,7 @@ func parseMovie(path string) ([][]byte, error) {
 	sign := []byte{0xde, 0xad, 0xbe, 0xef}
 	frames := [][]byte{}
 	frameNum := 0
-	for pos+12 <= len(data) {
+	for pos+16 <= len(data) {
 		if binary.BigEndian.Uint32(data[pos:pos+4]) != movieSignature {
 			idx := bytes.Index(data[pos:], sign)
 			if idx < 0 {
@@ -55,10 +55,10 @@ func parseMovie(path string) ([][]byte, error) {
 			continue
 		}
 		frame := binary.BigEndian.Uint32(data[pos+4 : pos+8])
-		size := int(binary.BigEndian.Uint16(data[pos+8 : pos+10]))
-		flags := binary.BigEndian.Uint16(data[pos+10 : pos+12])
+		size := int(binary.BigEndian.Uint32(data[pos+8 : pos+12]))
+		flags := binary.BigEndian.Uint32(data[pos+12 : pos+16])
 		dlog("frame %d index=%d size=%d flags=0x%x", frameNum, frame, size, flags)
-		pos += 12
+		pos += 16
 		if flags&flagGameState != 0 {
 			dlog("GameState block at %d", pos)
 			if pos+24 > len(data) {
@@ -70,15 +70,7 @@ func parseMovie(path string) ([][]byte, error) {
 		}
 		if flags&flagMobileData != 0 {
 			dlog("MobileData table at %d", pos)
-			// Descriptor layouts vary between client versions and
-			// are difficult to decode generically. For now simply
-			// skip until the sentinel value -1 which terminates the
-			// table. This keeps subsequent frame parsing in sync.
-			if idx := bytes.Index(data[pos:], []byte{0xff, 0xff, 0xff, 0xff}); idx >= 0 {
-				pos += idx + 4
-			} else {
-				pos = len(data)
-			}
+			pos = parseMobileTable(data, pos)
 			continue
 		}
 		if flags&flagPictureTable != 0 {
@@ -120,4 +112,81 @@ func parseMovie(path string) ([][]byte, error) {
 		frameNum++
 	}
 	return frames, nil
+}
+
+func parseMobileTable(data []byte, pos int) int {
+	const (
+		descTableSize = 266
+		descSize      = 156
+		colorsOffset  = 52
+		nameOffset    = 82
+	)
+	for pos+4 <= len(data) {
+		idx := int32(binary.BigEndian.Uint32(data[pos : pos+4]))
+		pos += 4
+		if idx == -1 {
+			break
+		}
+		hasMobile := idx < descTableSize
+		if !hasMobile {
+			idx -= descTableSize
+		}
+		var mob frameMobile
+		if hasMobile {
+			if pos+16 > len(data) {
+				return len(data)
+			}
+			mob.Index = uint8(idx)
+			mob.State = uint8(binary.BigEndian.Uint32(data[pos : pos+4]))
+			mob.H = int16(binary.BigEndian.Uint32(data[pos+4 : pos+8]))
+			mob.V = int16(binary.BigEndian.Uint32(data[pos+8 : pos+12]))
+			mob.Colors = uint8(binary.BigEndian.Uint32(data[pos+12 : pos+16]))
+			pos += 16
+		}
+		if pos+descSize > len(data) {
+			return len(data)
+		}
+		buf := data[pos : pos+descSize]
+		pos += descSize
+		d := frameDescriptor{Index: uint8(idx)}
+		d.Type = uint8(binary.BigEndian.Uint32(buf[16:20]))
+		pict := binary.BigEndian.Uint32(buf[0:4])
+		d.PictID = uint16(pict & 0xffff)
+		numColors := int(binary.BigEndian.Uint32(buf[44:48]))
+		if numColors < 0 || numColors > 30 {
+			numColors = 30
+		}
+		end := colorsOffset + numColors
+		if end > len(buf) {
+			end = len(buf)
+		}
+		d.Colors = append([]byte(nil), buf[colorsOffset:end]...)
+		nameBytes := buf[nameOffset : nameOffset+48]
+		if i := bytes.IndexByte(nameBytes, 0); i >= 0 {
+			d.Name = string(nameBytes[:i])
+		} else {
+			d.Name = string(nameBytes)
+		}
+		bubbleCounter := int32(binary.BigEndian.Uint32(buf[28:32]))
+		if bubbleCounter != 0 {
+			if pos+2 > len(data) {
+				return len(data)
+			}
+			l := int(binary.BigEndian.Uint16(data[pos : pos+2]))
+			pos += 2 + l
+		}
+		stateMu.Lock()
+		if hasMobile {
+			if state.mobiles == nil {
+				state.mobiles = make(map[uint8]frameMobile)
+			}
+			state.mobiles[mob.Index] = mob
+		}
+		if state.descriptors == nil {
+			state.descriptors = make(map[uint8]frameDescriptor)
+		}
+		state.descriptors[d.Index] = d
+		stateMu.Unlock()
+	}
+	return pos
 }
