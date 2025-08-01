@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image/color"
 	"log"
+	"math"
 	"net"
 	"sort"
 	"sync"
@@ -127,8 +128,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			h = float64(pm.H)*(1-alpha) + float64(m.H)*alpha
 			v = float64(pm.V)*(1-alpha) + float64(m.V)*alpha
 		}
-		x := int(h) + fieldCenterX
-		y := int(v) + fieldCenterY
+		x := int(math.Round(h)) + fieldCenterX
+		y := int(math.Round(v)) + fieldCenterY
 		var img *ebiten.Image
 		if d, ok := descMap[m.Index]; ok {
 			img = loadMobileFrame(d.PictID, m.State)
