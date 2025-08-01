@@ -199,8 +199,10 @@ func parseDrawState(data []byte) bool {
 
 	if txt := decodeBEPP(stateData); txt != "" {
 		fmt.Println(txt)
+		addMessage(txt)
 	} else if txt := decodeBubble(stateData); txt != "" {
 		fmt.Println(txt)
+		addMessage(txt)
 	}
 	return true
 }
