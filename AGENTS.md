@@ -22,3 +22,5 @@ This repo includes a minimal Go client under `go_client/`. To build or run the G
    ```
 
 The module path is `go_client` and the main package is located in this directory.
+
+the mac_client is our reference, written in C.
