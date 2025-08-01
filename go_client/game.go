@@ -11,8 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"strings"
-
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
@@ -141,8 +139,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	for _, d := range descs {
 		lines = append(lines, fmt.Sprintf("%d:%s id=%d t=%d", d.Index, d.Name, d.PictID, d.Type))
 	}
-	ebitenutil.DebugPrintAt(screen, strings.Join(lines, "\n"), 4, 4)
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("desc:%d pict:%d mobile:%d", len(descs), len(pics), len(mobiles)), 490, 460)
+	//ebitenutil.DebugPrintAt(screen, strings.Join(lines, "\n"), 4, 4)
+	//ebitenutil.DebugPrintAt(screen, fmt.Sprintf("desc:%d pict:%d mobile:%d", len(descs), len(pics), len(mobiles)), 490, 460)
 
 	msgs := getMessages()
 	startY := 480 - 12*len(msgs)
