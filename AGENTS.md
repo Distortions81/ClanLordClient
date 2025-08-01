@@ -3,7 +3,7 @@
 This repository contains two client implementations for the game **Clan Lord**:
 
 - `go_client/`: a minimal Go client using Ebiten.
-- `mac_client/`: the full macOS client built with Xcode.
+- `mac_client/`: the full macOS client built with Xcode, used as reference for building a new alterate client in golang.
 
 Below are build and test instructions for future tasks.
 
@@ -30,17 +30,6 @@ go test ./...
 ```
 It should report `[no test files]`.
 
-## Building the macOS client
-
-The macOS client resides in `mac_client/client` and is built using Xcode.
-On macOS with Xcode installed run:
-```bash
-cd mac_client/client
-./makeit.sh
-```
-This invokes `xcodebuild` to produce debug and release builds.
-
 ## Notes
 
-- There are no automated tests for the macOS client.
 - Scripts under `scripts/` are utilities and not part of the build.
