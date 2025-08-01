@@ -22,8 +22,8 @@ type framePicture struct {
 
 type frameMobile struct {
 	Index  uint8
-	State  uint16
-	V, H   int16
+	State  uint8
+	H, V   int16
 	Colors uint8
 }
 
@@ -170,14 +170,14 @@ func parseDrawState(data []byte) bool {
 	mobileCount := int(data[p])
 	p++
 	mobiles := make([]frameMobile, 0, mobileCount)
-	for i := 0; i < mobileCount && p+8 <= len(data); i++ {
+	for i := 0; i < mobileCount && p+7 <= len(data); i++ {
 		m := frameMobile{}
 		m.Index = data[p]
-		m.State = binary.BigEndian.Uint16(data[p+1:])
-		m.V = int16(binary.BigEndian.Uint16(data[p+3:]))
-		m.H = int16(binary.BigEndian.Uint16(data[p+5:]))
-		m.Colors = data[p+7]
-		p += 8
+		m.State = data[p+1]
+		m.H = int16(binary.BigEndian.Uint16(data[p+2:]))
+		m.V = int16(binary.BigEndian.Uint16(data[p+4:]))
+		m.Colors = data[p+6]
+		p += 7
 		mobiles = append(mobiles, m)
 	}
 
