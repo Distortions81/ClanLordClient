@@ -24,6 +24,7 @@ func main() {
 	pass := flag.String("pass", "demo", "character password")
 	clientVer := flag.Int("client-version", 1440, "client version number (kVersionNumber)")
 	flag.BoolVar(&debug, "debug", true, "enable debug logging")
+	flag.IntVar(&scale, "scale", 3, "screen scale factor")
 	flag.Parse()
 
 	if *clmov != "" {
