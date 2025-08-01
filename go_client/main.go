@@ -724,47 +724,23 @@ func main() {
 			fmt.Printf("login result: %d\n", result)
 		}
 
-		tcpConn.Close()
-		udpConn.Close()
-
 		if result == -30972 || result == -30973 {
 			fmt.Println("server requested update, downloading...")
 			if err := autoUpdate(resp); err != nil {
 				log.Fatalf("auto update: %v", err)
 			}
 			fmt.Println("update complete, reconnecting...")
+			tcpConn.Close()
+			udpConn.Close()
 			continue
 		}
 
 		if result == 0 {
-			tcpConn2, err := net.Dial("tcp", *host)
-			if err != nil {
-				log.Fatalf("tcp reconnect: %v", err)
-			}
-			udpConn2, err := net.Dial("udp", *host)
-			if err != nil {
-				log.Fatalf("udp reconnect: %v", err)
-			}
-
-			if _, err := io.ReadFull(tcpConn2, idBuf[:]); err != nil {
-				log.Fatalf("read id: %v", err)
-			}
-			handshake := append([]byte{0xff, 0xff}, idBuf[:]...)
-			if _, err := udpConn2.Write(handshake); err != nil {
-				log.Fatalf("send handshake: %v", err)
-			}
-			if _, err := io.ReadFull(tcpConn2, confirm[:]); err != nil {
-				log.Fatalf("confirm handshake: %v", err)
-			}
-			if err := sendIdentifiers(tcpConn2, encodeFullVersion(sendVersion), imagesVersion, soundsVersion); err != nil {
-				log.Fatalf("send identifiers: %v", err)
-			}
-
 			fmt.Println("login succeeded, reading messages (Ctrl-C to quit)...")
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 
-			if err := sendPlayerInput(udpConn2); err != nil {
+			if err := sendPlayerInput(udpConn); err != nil {
 				fmt.Printf("send player input: %v\n", err)
 			}
 
@@ -772,7 +748,7 @@ func main() {
 				ticker := time.NewTicker(2 * time.Second)
 				defer ticker.Stop()
 				for {
-					if err := sendPlayerInput(udpConn2); err != nil {
+					if err := sendPlayerInput(udpConn); err != nil {
 						fmt.Printf("send player input: %v\n", err)
 					}
 					select {
@@ -785,11 +761,11 @@ func main() {
 
 			go func() {
 				for {
-					if err := udpConn2.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+					if err := udpConn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 						fmt.Printf("udp deadline: %v\n", err)
 						return
 					}
-					m, err := readUDPMessage(udpConn2)
+					m, err := readUDPMessage(udpConn)
 					if err != nil {
 						if ne, ok := err.(net.Error); ok && ne.Timeout() {
 							select {
@@ -816,11 +792,11 @@ func main() {
 
 		loop:
 			for {
-				if err := tcpConn2.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+				if err := tcpConn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 					fmt.Printf("set read deadline: %v\n", err)
 					break
 				}
-				m, err := readMessage(tcpConn2)
+				m, err := readMessage(tcpConn)
 				if err != nil {
 					if ne, ok := err.(net.Error); ok && ne.Timeout() {
 						select {
@@ -848,8 +824,8 @@ func main() {
 				default:
 				}
 			}
-			tcpConn2.Close()
-			udpConn2.Close()
+			tcpConn.Close()
+			udpConn.Close()
 		}
 		break
 	}
