@@ -32,6 +32,10 @@ type drawState struct {
 	prevMobiles  map[uint8]frameMobile
 	prevTime     time.Time
 	curTime      time.Time
+	prevCamH     float64
+	prevCamV     float64
+	curCamH      float64
+	curCamV      float64
 }
 
 var (
@@ -40,53 +44,15 @@ var (
 		mobiles:      make(map[uint8]frameMobile),
 		prevMobiles:  make(map[uint8]frameMobile),
 		prevPictures: []framePicture{},
+		prevCamH:     0,
+		prevCamV:     0,
+		curCamH:      0,
+		curCamV:      0,
 	}
 	stateMu sync.Mutex
 )
 
 type Game struct{}
-
-// picMatcher helps pair current pictures with those from the previous frame
-// when the ordering differs between frames.
-type picMatcher struct {
-	prevByID map[uint16][]int
-	prev     []framePicture
-	used     []bool
-}
-
-func newPicMatcher(prev []framePicture) *picMatcher {
-	pm := &picMatcher{
-		prevByID: make(map[uint16][]int),
-		prev:     prev,
-		used:     make([]bool, len(prev)),
-	}
-	for i, p := range prev {
-		pm.prevByID[p.PictID] = append(pm.prevByID[p.PictID], i)
-	}
-	return pm
-}
-
-func (pm *picMatcher) match(p framePicture) (framePicture, bool) {
-	idxs := pm.prevByID[p.PictID]
-	bestIdx := -1
-	bestDist := int(^uint(0) >> 1) // max int
-	for _, i := range idxs {
-		if pm.used[i] {
-			continue
-		}
-		prev := pm.prev[i]
-		dist := abs(int(prev.H)-int(p.H)) + abs(int(prev.V)-int(p.V))
-		if dist < bestDist {
-			bestDist = dist
-			bestIdx = i
-		}
-	}
-	if bestIdx >= 0 {
-		pm.used[bestIdx] = true
-		return pm.prev[bestIdx], true
-	}
-	return framePicture{}, false
-}
 
 func abs(x int) int {
 	if x < 0 {
@@ -118,13 +84,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		descMap[idx] = d
 	}
 	pics := append([]framePicture(nil), state.pictures...)
-	prevPics := append([]framePicture(nil), state.prevPictures...)
-	matcher := newPicMatcher(prevPics)
-	mobilesMap := make(map[uint8]frameMobile, len(state.mobiles))
 	mobiles := make([]frameMobile, 0, len(state.mobiles))
-	for idx, m := range state.mobiles {
+	for _, m := range state.mobiles {
 		mobiles = append(mobiles, m)
-		mobilesMap[idx] = m
 	}
 	prevMobiles := make(map[uint8]frameMobile, len(state.prevMobiles))
 	for idx, m := range state.prevMobiles {
@@ -135,8 +97,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	stateMu.Unlock()
 
 	alpha := 1.0
-	camH := 0.0
-	camV := 0.0
+	camH := state.curCamH
+	camV := state.curCamV
 	if !curTime.IsZero() && curTime.After(prevTime) {
 		elapsed := time.Since(prevTime)
 		interval := curTime.Sub(prevTime)
@@ -144,18 +106,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		if alpha < 0 {
 			alpha = 0
 		}
-		if p, ok := mobilesMap[playerIndex]; ok {
-			if pp, ok := prevMobiles[playerIndex]; ok {
-				camH = float64(pp.H)*(1-alpha) + float64(p.H)*alpha
-				camV = float64(pp.V)*(1-alpha) + float64(p.V)*alpha
-			} else {
-				camH = float64(p.H)
-				camV = float64(p.V)
-			}
-		}
 		if alpha > 1 {
 			alpha = 1
 		}
+		camH = state.prevCamH*(1-alpha) + state.curCamH*alpha
+		camV = state.prevCamV*(1-alpha) + state.curCamV*alpha
 	}
 
 	type picItem struct {
@@ -223,17 +178,6 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	drawPicture := func(p framePicture, idx int) {
 		h := float64(p.H)
 		v := float64(p.V)
-		if prev, ok := matcher.match(p); ok {
-			h = float64(prev.H)*(1-alpha) + float64(p.H)*alpha
-			v = float64(prev.V)*(1-alpha) + float64(p.V)*alpha
-		} else if idx < len(prevPics) {
-			ph := prevPics[idx].H
-			pv := prevPics[idx].V
-			if ph != p.H || pv != p.V {
-				h = float64(ph)*(1-alpha) + float64(p.H)*alpha
-				v = float64(pv)*(1-alpha) + float64(p.V)*alpha
-			}
-		}
 		x := int(h-camH) + fieldCenterX
 		y := int(v-camV) + fieldCenterY
 		if img := loadImage(p.PictID); img != nil {
