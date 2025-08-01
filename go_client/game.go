@@ -184,7 +184,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 		if img != nil {
 			size := img.Bounds().Dx()
-			if onion && fade < 1 && prevImg != nil {
+			if onion && fade > 0.1 && fade < 0.9 && prevImg != nil {
 				op1 := &ebiten.DrawImageOptions{}
 				op1.GeoM.Translate(float64(x-size/2), float64(y-size/2))
 				op1.ColorM.Scale(1, 1, 1, 1-fade)
