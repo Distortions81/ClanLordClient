@@ -90,17 +90,21 @@ func readUDPMessage(conn net.Conn) ([]byte, error) {
 
 func sendPlayerInput(conn net.Conn) error {
 	const kMsgPlayerInput = 3
+	flags := uint16(0)
+	if mouseDown {
+		flags = kPIMDownField
+	}
 	buf := make([]byte, 20+1)
 	binary.BigEndian.PutUint16(buf[0:2], kMsgPlayerInput)
 	binary.BigEndian.PutUint16(buf[2:4], mouseX)
 	binary.BigEndian.PutUint16(buf[4:6], mouseY)
-	binary.BigEndian.PutUint16(buf[6:8], 0)
+	binary.BigEndian.PutUint16(buf[6:8], flags)
 	binary.BigEndian.PutUint32(buf[8:12], uint32(ackFrame))
 	binary.BigEndian.PutUint32(buf[12:16], uint32(resendFrame))
 	binary.BigEndian.PutUint32(buf[16:20], commandNum)
 	buf[20] = 0
 	commandNum++
-	dlog("player input ack=%d resend=%d cmd=%d mouse=%d,%d", ackFrame, resendFrame, commandNum-1, mouseX, mouseY)
+	dlog("player input ack=%d resend=%d cmd=%d mouse=%d,%d flags=%#x", ackFrame, resendFrame, commandNum-1, mouseX, mouseY, flags)
 	return sendUDPMessage(conn, buf)
 }
 
