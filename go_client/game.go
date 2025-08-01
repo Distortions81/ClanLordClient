@@ -101,7 +101,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	stateMu.Unlock()
 
 	alpha := 1.0
-	fade := 1.0
+	var fade float32 = 1.0
 	if (interp || onion) && !curTime.IsZero() && curTime.After(prevTime) {
 		elapsed := time.Since(prevTime)
 		interval := curTime.Sub(prevTime)
@@ -117,7 +117,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		if onion {
 			half := interval / 2
 			if half > 0 {
-				fade = float64(elapsed) / float64(half)
+				fade = float32(float64(elapsed) / float64(half))
 			}
 			if fade < 0 {
 				fade = 0
@@ -184,14 +184,15 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 		if img != nil {
 			size := img.Bounds().Dx()
-			if onion && fade > 0.1 && fade < 0.9 && prevImg != nil {
+			if onion && prevImg != nil {
 				op1 := &ebiten.DrawImageOptions{}
 				op1.GeoM.Translate(float64(x-size/2), float64(y-size/2))
-				op1.ColorM.Scale(1, 1, 1, 1-fade)
+				op1.ColorScale.ScaleAlpha(1 - fade)
 				screen.DrawImage(prevImg, op1)
+
 				op2 := &ebiten.DrawImageOptions{}
 				op2.GeoM.Translate(float64(x-size/2), float64(y-size/2))
-				op2.ColorM.Scale(1, 1, 1, fade)
+				op2.ColorScale.ScaleAlpha(fade)
 				screen.DrawImage(img, op2)
 			} else {
 				op := &ebiten.DrawImageOptions{}
