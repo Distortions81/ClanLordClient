@@ -77,6 +77,15 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 	prevTime := state.prevTime
 	curTime := state.curTime
+
+	// compute player movement delta for picture interpolation
+	deltaH, deltaV := 0, 0
+	if cur, ok := state.mobiles[playerIndex]; ok {
+		if prev, ok2 := state.prevMobiles[playerIndex]; ok2 {
+			deltaH = int(cur.H) - int(prev.H)
+			deltaV = int(cur.V) - int(prev.V)
+		}
+	}
 	stateMu.Unlock()
 
 	alpha := 1.0
@@ -145,8 +154,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	drawPicture := func(p framePicture) {
-		x := int(p.H) + fieldCenterX
-		y := int(p.V) + fieldCenterY
+		ph := float64(p.H) + float64(deltaH)*(1-alpha)
+		pv := float64(p.V) + float64(deltaV)*(1-alpha)
+		x := int(ph) + fieldCenterX
+		y := int(pv) + fieldCenterY
 		if img := loadImage(p.PictID); img != nil {
 			op := &ebiten.DrawImageOptions{}
 			w, h := img.Bounds().Dx(), img.Bounds().Dy()
