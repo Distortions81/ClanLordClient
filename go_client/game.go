@@ -20,6 +20,7 @@ import (
 var mouseX, mouseY uint16
 
 var gameCtx context.Context
+var scale int = 3
 
 // drawState tracks information needed by the Ebiten renderer.
 type drawState struct {
@@ -156,7 +157,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 
 func runGame(ctx context.Context) {
 	gameCtx = ctx
-	ebiten.SetWindowSize(640, 480)
+	ebiten.SetWindowSize(640*scale, 480*scale)
 	ebiten.SetWindowTitle("Draw State")
 	if err := ebiten.RunGame(&Game{}); err != nil {
 		log.Printf("ebiten: %v", err)
