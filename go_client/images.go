@@ -1,19 +1,15 @@
 package main
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 
 	"go_client/climg"
 )
 
-// imageCache lazily loads images from the img directory. The files are
-// expected to be named as id-%04d.png where %04d is a zero padded picture ID
-// sent by the server. Loading errors are logged via dlog and result in a nil
-// image.
+// imageCache lazily loads images from the CL_Images archive. If an image is not
+// present, nil is cached to avoid repeated lookups.
 var (
 	imageCache = make(map[uint16]*ebiten.Image)
 	imageMu    sync.Mutex
@@ -34,13 +30,6 @@ func loadImage(id uint16) *ebiten.Image {
 			return img
 		}
 	}
-	path := fmt.Sprintf("img/id-%04d.png", id)
-	img, _, err := ebitenutil.NewImageFromFile(path)
-	if err != nil {
-		dlog("load %s: %v", path, err)
-		imageCache[id] = nil
-		return nil
-	}
-	imageCache[id] = img
-	return img
+	imageCache[id] = nil
+	return nil
 }
