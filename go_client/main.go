@@ -17,11 +17,28 @@ import (
 
 func main() {
 	host := flag.String("host", "server.deltatao.com:5010", "server address")
+	clmov := flag.String("clmov", "", "play back a .clMov file")
 	name := flag.String("name", "demo", "character name")
 	pass := flag.String("pass", "demo", "character password")
 	clientVer := flag.Int("client-version", 1440, "client version number (kVersionNumber)")
 	flag.BoolVar(&debug, "debug", true, "enable debug logging")
 	flag.Parse()
+
+	if *clmov != "" {
+		frames, err := parseMovie(*clmov)
+		if err != nil {
+			log.Fatalf("parse movie: %v", err)
+		}
+		for _, m := range frames {
+			if len(m) >= 2 && binary.BigEndian.Uint16(m[:2]) == 2 {
+				handleDrawState(m)
+			}
+			if txt := decodeMessage(m); txt != "" {
+				fmt.Println(txt)
+			}
+		}
+		return
+	}
 
 	if debug {
 		logName := fmt.Sprintf("debug-%s.log", time.Now().Format("20060102-150405"))
