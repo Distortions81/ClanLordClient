@@ -192,6 +192,9 @@ func parseDrawState(data []byte) bool {
 		state.descriptors[d.Index] = d
 	}
 
+	// save previous picture positions for interpolation
+	state.prevPictures = append([]framePicture(nil), state.pictures...)
+
 	// retain previously drawn pictures when the packet specifies pictAgain
 	again := pictAgain
 	if again > len(state.pictures) {

@@ -25,19 +25,21 @@ var scale int = 3
 
 // drawState tracks information needed by the Ebiten renderer.
 type drawState struct {
-	descriptors map[uint8]frameDescriptor
-	pictures    []framePicture
-	mobiles     map[uint8]frameMobile
-	prevMobiles map[uint8]frameMobile
-	prevTime    time.Time
-	curTime     time.Time
+	descriptors  map[uint8]frameDescriptor
+	pictures     []framePicture
+	prevPictures []framePicture
+	mobiles      map[uint8]frameMobile
+	prevMobiles  map[uint8]frameMobile
+	prevTime     time.Time
+	curTime      time.Time
 }
 
 var (
 	state = drawState{
-		descriptors: make(map[uint8]frameDescriptor),
-		mobiles:     make(map[uint8]frameMobile),
-		prevMobiles: make(map[uint8]frameMobile),
+		descriptors:  make(map[uint8]frameDescriptor),
+		mobiles:      make(map[uint8]frameMobile),
+		prevMobiles:  make(map[uint8]frameMobile),
+		prevPictures: []framePicture{},
 	}
 	stateMu sync.Mutex
 )
@@ -67,6 +69,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		descMap[idx] = d
 	}
 	pics := append([]framePicture(nil), state.pictures...)
+	prevPics := append([]framePicture(nil), state.prevPictures...)
 	mobiles := make([]frameMobile, 0, len(state.mobiles))
 	for _, m := range state.mobiles {
 		mobiles = append(mobiles, m)
@@ -92,15 +95,23 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 	}
 
-	sort.Slice(pics, func(i, j int) bool {
+	type picItem struct {
+		pic framePicture
+		idx int
+	}
+	picItems := make([]picItem, len(pics))
+	for i, p := range pics {
+		picItems[i] = picItem{pic: p, idx: i}
+	}
+	sort.Slice(picItems, func(i, j int) bool {
 		pi := 0
 		pj := 0
 		if clImages != nil {
-			pi = clImages.Plane(uint32(pics[i].PictID))
-			pj = clImages.Plane(uint32(pics[j].PictID))
+			pi = clImages.Plane(uint32(picItems[i].pic.PictID))
+			pj = clImages.Plane(uint32(picItems[j].pic.PictID))
 		}
 		if pi == pj {
-			return pics[i].V < pics[j].V
+			return picItems[i].pic.V < picItems[j].pic.V
 		}
 		return pi < pj
 	})
@@ -144,9 +155,17 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		texts = append(texts, textItem{x + 6, y - 8, fmt.Sprintf("%d", m.Index)})
 	}
 
-	drawPicture := func(p framePicture) {
-		x := int(p.H) + fieldCenterX
-		y := int(p.V) + fieldCenterY
+	drawPicture := func(p framePicture, idx int) {
+		h := float64(p.H)
+		v := float64(p.V)
+		if idx < len(prevPics) {
+			ph := prevPics[idx].H
+			pv := prevPics[idx].V
+			h = float64(ph)*(1-alpha) + float64(p.H)*alpha
+			v = float64(pv)*(1-alpha) + float64(p.V)*alpha
+		}
+		x := int(h) + fieldCenterX
+		y := int(v) + fieldCenterY
 		if img := loadImage(p.PictID); img != nil {
 			op := &ebiten.DrawImageOptions{}
 			w, h := img.Bounds().Dx(), img.Bounds().Dy()
@@ -159,27 +178,28 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	// sort pictures by plane and split them into negative, zero and positive planes
-	negPics := make([]framePicture, 0)
-	zeroPics := make([]framePicture, 0)
-	posPics := make([]framePicture, 0)
-	for _, p := range pics {
+	negPics := make([]picItem, 0)
+	zeroPics := make([]picItem, 0)
+	posPics := make([]picItem, 0)
+	for _, it := range picItems {
+		p := it.pic
 		plane := 0
 		if clImages != nil {
 			plane = clImages.Plane(uint32(p.PictID))
 		}
 		switch {
 		case plane < 0:
-			negPics = append(negPics, p)
+			negPics = append(negPics, it)
 		case plane == 0:
-			zeroPics = append(zeroPics, p)
+			zeroPics = append(zeroPics, it)
 		default:
-			posPics = append(posPics, p)
+			posPics = append(posPics, it)
 		}
 	}
 
 	// draw pictures below mobiles
-	for _, p := range negPics {
-		drawPicture(p)
+	for _, it := range negPics {
+		drawPicture(it.pic, it.idx)
 	}
 
 	// draw fallen mobiles before merging
@@ -200,7 +220,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			mV = int(^uint(0) >> 1) // max int
 		}
 		if j < len(zeroPics) {
-			pV = int(zeroPics[j].V)
+			pV = int(zeroPics[j].pic.V)
 		} else {
 			pV = int(^uint(0) >> 1)
 		}
@@ -210,13 +230,13 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			}
 			i++
 		} else {
-			drawPicture(zeroPics[j])
+			drawPicture(zeroPics[j].pic, zeroPics[j].idx)
 			j++
 		}
 	}
 
-	for _, p := range posPics {
-		drawPicture(p)
+	for _, it := range posPics {
+		drawPicture(it.pic, it.idx)
 	}
 
 	/*
