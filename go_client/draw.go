@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"time"
 )
 
 // frameDescriptor describes an on-screen descriptor.
@@ -201,8 +202,25 @@ func parseDrawState(data []byte) bool {
 	copy(newPics[again:], pics)
 	state.pictures = newPics
 
+	// save previous mobile positions for interpolation
+	if state.prevMobiles == nil {
+		state.prevMobiles = make(map[uint8]frameMobile)
+	}
+	// copy current mobiles to prevMobiles before replacing
+	state.prevMobiles = make(map[uint8]frameMobile, len(state.mobiles))
+	for idx, m := range state.mobiles {
+		state.prevMobiles[idx] = m
+	}
+	state.prevTime = state.curTime
+	state.curTime = time.Now()
+
 	if state.mobiles == nil {
 		state.mobiles = make(map[uint8]frameMobile)
+	} else {
+		// clear map while keeping allocation
+		for k := range state.mobiles {
+			delete(state.mobiles, k)
+		}
 	}
 	for _, m := range mobiles {
 		state.mobiles[m.Index] = m

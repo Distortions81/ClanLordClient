@@ -28,12 +28,16 @@ type drawState struct {
 	descriptors map[uint8]frameDescriptor
 	pictures    []framePicture
 	mobiles     map[uint8]frameMobile
+	prevMobiles map[uint8]frameMobile
+	prevTime    time.Time
+	curTime     time.Time
 }
 
 var (
 	state = drawState{
 		descriptors: make(map[uint8]frameDescriptor),
 		mobiles:     make(map[uint8]frameMobile),
+		prevMobiles: make(map[uint8]frameMobile),
 	}
 	stateMu sync.Mutex
 )
@@ -67,7 +71,26 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	for _, m := range state.mobiles {
 		mobiles = append(mobiles, m)
 	}
+	prevMobiles := make(map[uint8]frameMobile, len(state.prevMobiles))
+	for idx, m := range state.prevMobiles {
+		prevMobiles[idx] = m
+	}
+	prevTime := state.prevTime
+	curTime := state.curTime
 	stateMu.Unlock()
+
+	alpha := 1.0
+	if !curTime.IsZero() && curTime.After(prevTime) {
+		elapsed := time.Since(prevTime)
+		interval := curTime.Sub(prevTime)
+		alpha = float64(elapsed) / float64(interval)
+		if alpha < 0 {
+			alpha = 0
+		}
+		if alpha > 1 {
+			alpha = 1
+		}
+	}
 
 	sort.Slice(pics, func(i, j int) bool {
 		pi := 0
@@ -98,8 +121,14 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	texts := []textItem{}
 
 	drawMobile := func(m frameMobile) {
-		x := int(m.H) + fieldCenterX
-		y := int(m.V) + fieldCenterY
+		h := float64(m.H)
+		v := float64(m.V)
+		if pm, ok := prevMobiles[m.Index]; ok {
+			h = float64(pm.H)*(1-alpha) + float64(m.H)*alpha
+			v = float64(pm.V)*(1-alpha) + float64(m.V)*alpha
+		}
+		x := int(h) + fieldCenterX
+		y := int(v) + fieldCenterY
 		var img *ebiten.Image
 		if d, ok := descMap[m.Index]; ok {
 			img = loadMobileFrame(d.PictID, m.State)
