@@ -48,15 +48,14 @@ func encodeFullVersion(v int) uint32 {
 const baseVersion = 1353
 
 func hexDump(prefix string, data []byte) {
-	if !dumpTraffic {
+	if !debug {
 		return
 	}
-	fmt.Printf("%s %d bytes\n", prefix, len(data))
-	fmt.Println(hex.Dump(data))
+	log.Printf("%s %d bytes\n%s", prefix, len(data), hex.Dump(data))
 }
 
-func vlog(format string, args ...interface{}) {
-	if verbose {
+func dlog(format string, args ...interface{}) {
+	if debug {
 		log.Printf(format, args...)
 	}
 }
@@ -109,8 +108,8 @@ func init() {
 	loadAdditionalErrorNames()
 }
 
-var dumpTraffic bool
-var verbose bool = true
+var debug bool = true
+var logFile *os.File
 var ackFrame int32
 var resendFrame int32
 var commandNum uint32 = 1
@@ -222,7 +221,7 @@ func sendIdentifiers(conn net.Conn, clientVersion, imagesVersion, soundsVersion 
 	binary.BigEndian.PutUint32(buf[12:16], soundsVersion)
 	copy(buf[16:], data)
 	simpleEncrypt(buf[16:])
-	vlog("identifiers client=%d images=%d sounds=%d", clientVersion, imagesVersion, soundsVersion)
+	dlog("identifiers client=%d images=%d sounds=%d", clientVersion, imagesVersion, soundsVersion)
 	return sendMessage(conn, buf)
 }
 
@@ -234,7 +233,7 @@ func sendMessage(conn net.Conn, msg []byte) error {
 	}
 	_, err := conn.Write(msg)
 	tag := binary.BigEndian.Uint16(msg[:2])
-	vlog("send tcp tag %d len %d", tag, len(msg))
+	dlog("send tcp tag %d len %d", tag, len(msg))
 	hexDump("send", msg)
 	return err
 }
@@ -245,7 +244,7 @@ func sendUDPMessage(conn net.Conn, msg []byte) error {
 	buf := append(size[:], msg...)
 	_, err := conn.Write(buf)
 	tag := binary.BigEndian.Uint16(msg[:2])
-	vlog("send udp tag %d len %d", tag, len(msg))
+	dlog("send udp tag %d len %d", tag, len(msg))
 	hexDump("send", msg)
 	return err
 }
@@ -265,7 +264,7 @@ func readUDPMessage(conn net.Conn) ([]byte, error) {
 	}
 	msg := append([]byte(nil), buf[2:2+sz]...)
 	tag := binary.BigEndian.Uint16(msg[:2])
-	vlog("recv udp tag %d len %d", tag, len(msg))
+	dlog("recv udp tag %d len %d", tag, len(msg))
 	hexDump("recv", msg)
 	return msg, nil
 }
@@ -282,7 +281,7 @@ func sendPlayerInput(conn net.Conn) error {
 	binary.BigEndian.PutUint32(buf[16:20], commandNum)
 	buf[20] = 0
 	commandNum++
-	vlog("player input ack=%d resend=%d cmd=%d mouse=%d,%d", ackFrame, resendFrame, commandNum-1, mouseX, mouseY)
+	dlog("player input ack=%d resend=%d cmd=%d mouse=%d,%d", ackFrame, resendFrame, commandNum-1, mouseX, mouseY)
 	return sendUDPMessage(conn, buf)
 }
 
@@ -297,7 +296,7 @@ func readMessage(conn net.Conn) ([]byte, error) {
 		return nil, err
 	}
 	tag := binary.BigEndian.Uint16(buf[:2])
-	vlog("recv tcp tag %d len %d", tag, len(buf))
+	dlog("recv tcp tag %d len %d", tag, len(buf))
 	hexDump("recv", buf)
 	return buf, nil
 }
@@ -491,7 +490,7 @@ func handleDrawState(m []byte) {
 	}
 	ackFrame = int32(binary.BigEndian.Uint32(data[1:5]))
 	resendFrame = int32(binary.BigEndian.Uint32(data[5:9]))
-	vlog("draw state ack=%d resend=%d", ackFrame, resendFrame)
+	dlog("draw state ack=%d resend=%d", ackFrame, resendFrame)
 }
 
 func decodeMessage(m []byte) string {
@@ -547,7 +546,7 @@ func requestCharList(conn net.Conn, account, password string, challenge []byte, 
 	if err := sendMessage(conn, buf); err != nil {
 		return nil, err
 	}
-	vlog("request character list for %s", account)
+	dlog("request character list for %s", account)
 
 	resp, err := readMessage(conn)
 	if err != nil {
@@ -584,7 +583,7 @@ func requestCharList(conn net.Conn, account, password string, challenge []byte, 
 		names = append(names, string(namesData[:i]))
 		namesData = namesData[i+1:]
 	}
-	vlog("server returned %d characters", len(names))
+	dlog("server returned %d characters", len(names))
 	return names, nil
 }
 
@@ -592,13 +591,25 @@ func main() {
 	host := flag.String("host", "server.deltatao.com:5010", "server address")
 	name := flag.String("name", "demo", "character name")
 	pass := flag.String("pass", "demo", "character password")
-	listDemo := flag.Bool("list-demo", false, "list available demo characters")
 	clientVer := flag.Int("client-version", 1440, "client version number (kVersionNumber)")
-	flag.BoolVar(&dumpTraffic, "dump", false, "dump raw network traffic")
-	flag.BoolVar(&verbose, "verbose", true, "enable verbose logging")
+	flag.BoolVar(&debug, "debug", true, "enable debug logging")
 	flag.Parse()
 
-	autoDemo := *name == "demo" && *pass == "demo" && !*listDemo
+	if debug {
+		logName := fmt.Sprintf("debug-%s.log", time.Now().Format("20060102-150405"))
+		f, err := os.Create(logName)
+		if err == nil {
+			logFile = f
+			log.SetOutput(f)
+			defer f.Close()
+		} else {
+			fmt.Printf("warning: could not create log file: %v\n", err)
+		}
+	} else {
+		log.SetOutput(io.Discard)
+	}
+
+	autoDemo := *name == "demo" && *pass == "demo"
 
 	// clientVersion corresponds to kVersionNumber from
 	// VersionNumber_cl.h in the C client. The server currently
@@ -676,17 +687,6 @@ func main() {
 			log.Fatalf("unexpected msg tag %d", tag)
 		}
 		challenge := msg[8 : 8+16]
-
-		if *listDemo {
-			names, err := requestCharList(tcpConn, "demo", "demo", challenge, encodeFullVersion(sendVersion), imagesVersion, soundsVersion)
-			if err != nil {
-				log.Fatalf("list demo: %v", err)
-			}
-			for _, n := range names {
-				fmt.Println(n)
-			}
-			return
-		}
 
 		if autoDemo {
 			names, err := requestCharList(tcpConn, "demo", "demo", challenge, encodeFullVersion(sendVersion), imagesVersion, soundsVersion)
