@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"image/color"
 	"io"
 	"log"
 	"math/rand"
@@ -23,11 +24,148 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
+
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
 var mouseX, mouseY = uint16(rand.Intn(1600)), uint16(rand.Intn(1200))
+
+type drawState struct {
+	descriptors []frameDescriptor
+	pictures    []framePicture
+	mobiles     []frameMobile
+}
+
+var (
+	state   drawState
+	stateMu sync.Mutex
+)
+
+var gameCtx context.Context
+
+type Game struct{}
+
+func (g *Game) Update() error {
+	select {
+	case <-gameCtx.Done():
+		return fmt.Errorf("context done")
+	default:
+	}
+	return nil
+}
+
+func (g *Game) Draw(screen *ebiten.Image) {
+	screen.Fill(color.White)
+	stateMu.Lock()
+	mobiles := append([]frameMobile(nil), state.mobiles...)
+	stateMu.Unlock()
+	for _, m := range mobiles {
+		x := int(m.H) + 320
+		y := int(m.V) + 240
+		ebitenutil.DrawRect(screen, float64(x), float64(y), 10, 10, color.RGBA{0xff, 0, 0, 0xff})
+	}
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("mobiles: %d", len(mobiles)))
+}
+
+func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
+	return 640, 480
+}
+
+func runGame(ctx context.Context) {
+	gameCtx = ctx
+	ebiten.SetWindowSize(640, 480)
+	ebiten.SetWindowTitle("Draw State")
+	if err := ebiten.RunGame(&Game{}); err != nil {
+		log.Printf("ebiten: %v", err)
+	}
+}
+
+func sendInputLoop(ctx context.Context, conn net.Conn) {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+	for {
+		if err := sendPlayerInput(conn); err != nil {
+			fmt.Printf("send player input: %v\n", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func udpReadLoop(ctx context.Context, conn net.Conn) {
+	for {
+		if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+			fmt.Printf("udp deadline: %v\n", err)
+			return
+		}
+		m, err := readUDPMessage(conn)
+		if err != nil {
+			if ne, ok := err.(net.Error); ok && ne.Timeout() {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					continue
+				}
+			}
+			fmt.Printf("udp read error: %v\n", err)
+			return
+		}
+		tag := binary.BigEndian.Uint16(m[:2])
+		if tag == 2 { // kMsgDrawState
+			handleDrawState(m)
+		}
+		if txt := decodeMessage(m); txt != "" {
+			fmt.Println(txt)
+		} else {
+			fmt.Printf("udp msg tag %d len %d\n", tag, len(m))
+		}
+	}
+}
+
+func tcpReadLoop(ctx context.Context, conn net.Conn) {
+loop:
+	for {
+		if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+			fmt.Printf("set read deadline: %v\n", err)
+			break
+		}
+		m, err := readMessage(conn)
+		if err != nil {
+			if ne, ok := err.(net.Error); ok && ne.Timeout() {
+				select {
+				case <-ctx.Done():
+					break loop
+				default:
+					continue
+				}
+			}
+			fmt.Printf("read error: %v\n", err)
+			break
+		}
+		tag := binary.BigEndian.Uint16(m[:2])
+		if tag == 2 { // kMsgDrawState
+			handleDrawState(m)
+		}
+		if txt := decodeMessage(m); txt != "" {
+			fmt.Println(txt)
+		} else {
+			fmt.Printf("msg tag %d len %d\n", tag, len(m))
+		}
+		select {
+		case <-ctx.Done():
+			break loop
+		default:
+		}
+	}
+}
 
 func simpleEncrypt(data []byte) {
 	key := []byte{0x3c, 0x5a, 0x69, 0x93, 0xa5, 0xc6}
@@ -587,13 +725,13 @@ func handleDrawState(m []byte) {
 	if len(data) < p+7 {
 		return
 	}
-	hp := data[p]
-	hpMax := data[p+1]
-	sp := data[p+2]
-	spMax := data[p+3]
-	bal := data[p+4]
-	balMax := data[p+5]
-	light := data[p+6]
+	_ = data[p]   // hp
+	_ = data[p+1] // hpMax
+	_ = data[p+2] // sp
+	_ = data[p+3] // spMax
+	_ = data[p+4] // bal
+	_ = data[p+5] // balMax
+	_ = data[p+6] // light
 	p += 7
 
 	if len(data) <= p {
@@ -643,6 +781,12 @@ func handleDrawState(m []byte) {
 	}
 
 	stateData := data[p:]
+
+	stateMu.Lock()
+	state.descriptors = descs
+	state.pictures = pics
+	state.mobiles = mobiles
+	stateMu.Unlock()
 
 	dlog("draw state cmd=%d ack=%d resend=%d desc=%d pict=%d again=%d mobile=%d state=%d", ackCmd, ackFrame, resendFrame, len(descs), len(pics), pictAgain, len(mobiles), len(stateData))
 
@@ -913,92 +1057,17 @@ func main() {
 		if result == 0 {
 			fmt.Println("login succeeded, reading messages (Ctrl-C to quit)...")
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-			defer stop()
 
 			if err := sendPlayerInput(udpConn); err != nil {
 				fmt.Printf("send player input: %v\n", err)
 			}
 
-			go func() {
-				ticker := time.NewTicker(2 * time.Second)
-				defer ticker.Stop()
-				for {
-					if err := sendPlayerInput(udpConn); err != nil {
-						fmt.Printf("send player input: %v\n", err)
-					}
-					select {
-					case <-ctx.Done():
-						return
-					case <-ticker.C:
-					}
-				}
-			}()
+			go sendInputLoop(ctx, udpConn)
+			go udpReadLoop(ctx, udpConn)
+			go tcpReadLoop(ctx, tcpConn)
 
-			go func() {
-				for {
-					if err := udpConn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
-						fmt.Printf("udp deadline: %v\n", err)
-						return
-					}
-					m, err := readUDPMessage(udpConn)
-					if err != nil {
-						if ne, ok := err.(net.Error); ok && ne.Timeout() {
-							select {
-							case <-ctx.Done():
-								return
-							default:
-								continue
-							}
-						}
-						fmt.Printf("udp read error: %v\n", err)
-						return
-					}
-					tag := binary.BigEndian.Uint16(m[:2])
-					if tag == 2 { // kMsgDrawState
-						handleDrawState(m)
-					}
-					if txt := decodeMessage(m); txt != "" {
-						fmt.Println(txt)
-					} else {
-						fmt.Printf("udp msg tag %d len %d\n", tag, len(m))
-					}
-				}
-			}()
-
-		loop:
-			for {
-				if err := tcpConn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
-					fmt.Printf("set read deadline: %v\n", err)
-					break
-				}
-				m, err := readMessage(tcpConn)
-				if err != nil {
-					if ne, ok := err.(net.Error); ok && ne.Timeout() {
-						select {
-						case <-ctx.Done():
-							break loop
-						default:
-							continue
-						}
-					}
-					fmt.Printf("read error: %v\n", err)
-					break
-				}
-				tag := binary.BigEndian.Uint16(m[:2])
-				if tag == 2 { // kMsgDrawState
-					handleDrawState(m)
-				}
-				if txt := decodeMessage(m); txt != "" {
-					fmt.Println(txt)
-				} else {
-					fmt.Printf("msg tag %d len %d\n", tag, len(m))
-				}
-				select {
-				case <-ctx.Done():
-					break loop
-				default:
-				}
-			}
+			runGame(ctx)
+			stop()
 			tcpConn.Close()
 			udpConn.Close()
 		}
