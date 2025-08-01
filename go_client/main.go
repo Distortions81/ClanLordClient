@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -31,6 +32,16 @@ func main() {
 	clImages, imgErr = climg.Load("CL_Images")
 	if imgErr != nil {
 		log.Printf("load CL_Images: %v", imgErr)
+	}
+	if imgErr != nil && *clmov != "" {
+		alt := filepath.Join(filepath.Dir(*clmov), "CL_Images")
+		if imgs, err := climg.Load(alt); err == nil {
+			clImages = imgs
+			imgErr = nil
+			log.Printf("loaded CL_Images from %s", alt)
+		} else {
+			log.Printf("load CL_Images from %s: %v", alt, err)
+		}
 	}
 
 	if *clmov != "" {
