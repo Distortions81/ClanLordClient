@@ -178,6 +178,7 @@ func main() {
 			*name = names[rand.Intn(len(names))]
 			fmt.Println("selected demo character:", *name)
 		}
+		playerName = *name
 
 		answer, err := answerChallenge(*pass, challenge)
 		if err != nil {
