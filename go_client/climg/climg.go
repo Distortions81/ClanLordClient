@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/color"
 	"io"
+	"log"
 	"os"
 	"sync"
 
@@ -46,15 +47,23 @@ func Load(path string) (*CLImages, error) {
 	r := bytes.NewReader(data)
 	var header uint16
 	var entryCount uint32
-	binary.Read(r, binary.BigEndian, &header)
+	if err := binary.Read(r, binary.BigEndian, &header); err != nil {
+		return nil, err
+	}
 	if header != 0xffff {
 		return nil, fmt.Errorf("bad header")
 	}
-	binary.Read(r, binary.BigEndian, &entryCount)
+	if err := binary.Read(r, binary.BigEndian, &entryCount); err != nil {
+		return nil, err
+	}
 	var pad1 uint32
 	var pad2 uint16
-	binary.Read(r, binary.BigEndian, &pad1)
-	binary.Read(r, binary.BigEndian, &pad2)
+	if err := binary.Read(r, binary.BigEndian, &pad1); err != nil {
+		return nil, err
+	}
+	if err := binary.Read(r, binary.BigEndian, &pad2); err != nil {
+		return nil, err
+	}
 
 	imgs := &CLImages{
 		data:   data,
@@ -66,10 +75,18 @@ func Load(path string) (*CLImages, error) {
 
 	for i := uint32(0); i < entryCount; i++ {
 		dl := &dataLocation{}
-		binary.Read(r, binary.BigEndian, &dl.offset)
-		binary.Read(r, binary.BigEndian, &dl.size)
-		binary.Read(r, binary.BigEndian, &dl.entryType)
-		binary.Read(r, binary.BigEndian, &dl.id)
+		if err := binary.Read(r, binary.BigEndian, &dl.offset); err != nil {
+			return nil, err
+		}
+		if err := binary.Read(r, binary.BigEndian, &dl.size); err != nil {
+			return nil, err
+		}
+		if err := binary.Read(r, binary.BigEndian, &dl.entryType); err != nil {
+			return nil, err
+		}
+		if err := binary.Read(r, binary.BigEndian, &dl.id); err != nil {
+			return nil, err
+		}
 		switch dl.entryType {
 		case TYPE_IDREF:
 			imgs.idrefs[dl.id] = dl
@@ -82,10 +99,15 @@ func Load(path string) (*CLImages, error) {
 
 	// preload colors
 	for _, c := range imgs.colors {
-		r.Seek(int64(c.offset), io.SeekStart)
+		if _, err := r.Seek(int64(c.offset), io.SeekStart); err != nil {
+			return nil, err
+		}
 		c.colorBytes = make([]uint16, c.size)
 		for i := 0; i < int(c.size); i++ {
-			b, _ := r.ReadByte()
+			b, err := r.ReadByte()
+			if err != nil {
+				return nil, err
+			}
 			c.colorBytes[i] = uint16(b)
 		}
 	}
@@ -111,16 +133,34 @@ func (c *CLImages) Get(id uint32) *ebiten.Image {
 	}
 
 	r := bytes.NewReader(c.data)
-	r.Seek(int64(imgLoc.offset), io.SeekStart)
+	if _, err := r.Seek(int64(imgLoc.offset), io.SeekStart); err != nil {
+		log.Printf("seek image %d: %v", id, err)
+		return nil
+	}
 
 	var h, w uint16
 	var pad uint32
 	var v, b byte
-	binary.Read(r, binary.BigEndian, &h)
-	binary.Read(r, binary.BigEndian, &w)
-	binary.Read(r, binary.BigEndian, &pad)
-	binary.Read(r, binary.BigEndian, &v)
-	binary.Read(r, binary.BigEndian, &b)
+	if err := binary.Read(r, binary.BigEndian, &h); err != nil {
+		log.Printf("read h for %d: %v", id, err)
+		return nil
+	}
+	if err := binary.Read(r, binary.BigEndian, &w); err != nil {
+		log.Printf("read w for %d: %v", id, err)
+		return nil
+	}
+	if err := binary.Read(r, binary.BigEndian, &pad); err != nil {
+		log.Printf("read pad for %d: %v", id, err)
+		return nil
+	}
+	if err := binary.Read(r, binary.BigEndian, &v); err != nil {
+		log.Printf("read v for %d: %v", id, err)
+		return nil
+	}
+	if err := binary.Read(r, binary.BigEndian, &b); err != nil {
+		log.Printf("read b for %d: %v", id, err)
+		return nil
+	}
 
 	width := int(w)
 	height := int(h)
@@ -131,12 +171,24 @@ func (c *CLImages) Get(id uint32) *ebiten.Image {
 	data := make([]byte, pixelCount)
 	pixPos := 0
 	for pixPos < pixelCount {
-		t, _ := br.ReadBit()
-		s, _ := br.ReadInt(blockLenW)
+		t, err := br.ReadBit()
+		if err != nil {
+			log.Printf("read bit for %d: %v", id, err)
+			return nil
+		}
+		s, err := br.ReadInt(blockLenW)
+		if err != nil {
+			log.Printf("read int for %d: %v", id, err)
+			return nil
+		}
 		s++
 		if t {
 			for i := 0; i < s; i++ {
-				val, _ := br.ReadBits(valueW)
+				val, err := br.ReadBits(valueW)
+				if err != nil {
+					log.Printf("read bits for %d: %v", id, err)
+					return nil
+				}
 				if pixPos < pixelCount {
 					data[pixPos] = val
 					pixPos++
@@ -145,7 +197,11 @@ func (c *CLImages) Get(id uint32) *ebiten.Image {
 				}
 			}
 		} else {
-			val, _ := br.ReadBits(valueW)
+			val, err := br.ReadBits(valueW)
+			if err != nil {
+				log.Printf("read bits for %d: %v", id, err)
+				return nil
+			}
 			for i := 0; i < s; i++ {
 				if pixPos < pixelCount {
 					data[pixPos] = val

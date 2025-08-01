@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -29,6 +30,9 @@ func loadImage(id uint16) *ebiten.Image {
 			imageCache[id] = img
 			return img
 		}
+		log.Printf("missing image %d", id)
+	} else {
+		log.Printf("CL_Images not loaded when requesting image %d", id)
 	}
 	imageCache[id] = nil
 	return nil
