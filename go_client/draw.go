@@ -66,23 +66,31 @@ func signExtend(v uint32, bits int) int16 {
 // pictureShift returns the most common (dx, dy) offset between matching
 // pictures in prev and cur. The boolean return is false when no majority is
 // found.
+// pictureShift returns the (dx, dy) movement that most pictures agree on
+// between two consecutive frames. The boolean return is false when no majority
+// is found. Pictures are matched by PictID; duplicates are all considered.
 func pictureShift(prev, cur []framePicture) (int, int, bool) {
-	n := len(prev)
-	if len(cur) < n {
-		n = len(cur)
-	}
-	if n == 0 {
+	if len(prev) == 0 || len(cur) == 0 {
 		return 0, 0, false
 	}
+
 	counts := make(map[[2]int]int)
-	for i := 0; i < n; i++ {
-		if prev[i].PictID != cur[i].PictID {
-			continue
+	total := 0
+	for _, p := range prev {
+		for _, c := range cur {
+			if p.PictID != c.PictID {
+				continue
+			}
+			dx := int(c.H) - int(p.H)
+			dy := int(c.V) - int(p.V)
+			counts[[2]int{dx, dy}]++
+			total++
 		}
-		dx := int(cur[i].H) - int(prev[i].H)
-		dy := int(cur[i].V) - int(prev[i].V)
-		counts[[2]int{dx, dy}]++
 	}
+	if total == 0 {
+		return 0, 0, false
+	}
+
 	best := [2]int{}
 	bestCount := 0
 	for k, c := range counts {
@@ -91,7 +99,7 @@ func pictureShift(prev, cur []framePicture) (int, int, bool) {
 			bestCount = c
 		}
 	}
-	if bestCount*2 <= n {
+	if bestCount*2 <= total {
 		return 0, 0, false
 	}
 	return best[0], best[1], true
