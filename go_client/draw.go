@@ -185,7 +185,17 @@ func parseDrawState(data []byte) bool {
 	for _, d := range descs {
 		state.descriptors[d.Index] = d
 	}
-	state.pictures = pics
+
+	// retain previously drawn pictures when the packet specifies pictAgain
+	again := pictAgain
+	if again > len(state.pictures) {
+		again = len(state.pictures)
+	}
+	newPics := make([]framePicture, again+pictCount)
+	copy(newPics, state.pictures[:again])
+	copy(newPics[again:], pics)
+	state.pictures = newPics
+
 	if state.mobiles == nil {
 		state.mobiles = make(map[uint8]frameMobile)
 	}
