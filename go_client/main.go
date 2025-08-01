@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/hajimehoshi/ebiten/v2"
+
 	"go_client/climg"
 )
 
@@ -28,7 +30,12 @@ func main() {
 	flag.IntVar(&scale, "scale", 2, "screen scale factor")
 	flag.BoolVar(&interp, "interp", false, "enable movement interpolation")
 	flag.BoolVar(&onion, "onion", false, "cross-fade sprite animations")
+	flag.BoolVar(&linear, "linear", false, "use linear filtering")
 	flag.Parse()
+
+	if linear {
+		drawFilter = ebiten.FilterLinear
+	}
 
 	var imgErr error
 	clImages, imgErr = climg.Load("CL_Images")
