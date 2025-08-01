@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"strings"
+
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
@@ -44,15 +46,33 @@ func (g *Game) Update() error {
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	screen.Fill(color.White)
+
 	stateMu.Lock()
+	descs := append([]frameDescriptor(nil), state.descriptors...)
+	pics := append([]framePicture(nil), state.pictures...)
 	mobiles := append([]frameMobile(nil), state.mobiles...)
 	stateMu.Unlock()
+
+	for _, p := range pics {
+		x := int(p.H) + 320
+		y := int(p.V) + 240
+		ebitenutil.DrawRect(screen, float64(x)-2, float64(y)-2, 4, 4, color.RGBA{0, 0, 0xff, 0xff})
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%d", p.PictID), x+4, y-8)
+	}
+
 	for _, m := range mobiles {
 		x := int(m.H) + 320
 		y := int(m.V) + 240
-		ebitenutil.DrawRect(screen, float64(x), float64(y), 10, 10, color.RGBA{0xff, 0, 0, 0xff})
+		ebitenutil.DrawRect(screen, float64(x)-3, float64(y)-3, 6, 6, color.RGBA{0xff, 0, 0, 0xff})
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%d", m.Index), x+6, y-8)
 	}
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("mobiles: %d", len(mobiles)))
+
+	lines := make([]string, 0, len(descs))
+	for _, d := range descs {
+		lines = append(lines, fmt.Sprintf("%d:%s id=%d t=%d", d.Index, d.Name, d.PictID, d.Type))
+	}
+	ebitenutil.DebugPrintAt(screen, strings.Join(lines, "\n"), 4, 4)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("desc:%d pict:%d mobile:%d", len(descs), len(pics), len(mobiles)), 4, 460)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
