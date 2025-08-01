@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 )
 
 // frameDescriptor describes an on-screen descriptor.
@@ -210,6 +211,46 @@ func parseDrawState(data []byte) bool {
 
 	if idx := bytes.IndexByte(stateData, 0); idx >= 0 {
 		handleInfoText(stateData[:idx])
+		stateData = stateData[idx+1:]
+	} else {
+		return true
+	}
+
+	if len(stateData) > 0 {
+		bubbleCount := int(stateData[0])
+		stateData = stateData[1:]
+		for i := 0; i < bubbleCount; i++ {
+			if len(stateData) < 2 {
+				return false
+			}
+			typ := int(stateData[1])
+			p := 2
+			if typ&kBubbleNotCommon != 0 {
+				if len(stateData) < p+1 {
+					return false
+				}
+				p++
+			}
+			if typ&kBubbleFar != 0 {
+				if len(stateData) < p+4 {
+					return false
+				}
+				p += 4
+			}
+			if len(stateData) < p {
+				return false
+			}
+			end := bytes.IndexByte(stateData[p:], 0)
+			if end < 0 {
+				return false
+			}
+			bubbleData := stateData[:p+end+1]
+			if txt := decodeBubble(bubbleData); txt != "" {
+				fmt.Println(txt)
+				addMessage(txt)
+			}
+			stateData = stateData[p+end+1:]
+		}
 	}
 	return true
 }
