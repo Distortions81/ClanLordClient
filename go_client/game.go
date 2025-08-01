@@ -143,7 +143,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	//ebitenutil.DebugPrintAt(screen, fmt.Sprintf("desc:%d pict:%d mobile:%d", len(descs), len(pics), len(mobiles)), 490, 460)
 
 	msgs := getMessages()
-	startY := 480 - 12*len(msgs)
+	startY := 480 - 12*len(msgs) - 6
 	for i, msg := range msgs {
 		ebitenutil.DebugPrintAt(screen, msg, 4, startY+12*i)
 	}
