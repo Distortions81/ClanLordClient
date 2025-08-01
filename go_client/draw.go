@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"strings"
 )
 
 // frameDescriptor describes an on-screen descriptor.
@@ -209,12 +210,18 @@ func parseDrawState(data []byte) bool {
 	dlog("draw state cmd=%d ack=%d resend=%d desc=%d pict=%d again=%d mobile=%d state=%d",
 		ackCmd, ackFrame, resendFrame, len(descs), len(pics), pictAgain, len(mobiles), len(stateData))
 
-	if txt := decodeBEPP(stateData); txt != "" {
-		fmt.Println(txt)
-		addMessage(txt)
-	} else if txt := decodeBubble(stateData); txt != "" {
-		fmt.Println(txt)
-		addMessage(txt)
+	if idx := bytes.IndexByte(stateData, 0); idx >= 0 {
+		msgData := stateData[:idx]
+		if txt := decodeBEPP(msgData); txt != "" {
+			fmt.Println(txt)
+			addMessage(txt)
+		} else if txt := decodeBubble(msgData); txt != "" {
+			fmt.Println(txt)
+			addMessage(txt)
+		} else if s := strings.TrimSpace(decodeMacRoman(msgData)); s != "" {
+			fmt.Println(s)
+			addMessage(s)
+		}
 	}
 	return true
 }
