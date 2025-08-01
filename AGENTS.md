@@ -44,3 +44,23 @@ Both scripts expect to be executed from the repository root.
 The module path is `go_client` and the main package is located in this directory.
 
 The `mac_client` directory contains a reference implementation written in C.
+
+## Session notes
+The following dependencies were installed when building and testing the Go client
+in this session:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y golang-go build-essential libgl1-mesa-dev libglu1-mesa-dev xorg-dev
+```
+
+Example build, test and run commands used:
+
+```bash
+go build ./...
+go test ./... -run TestParseMovie -v
+go run .
+```
+
+Running the client without a display (i.e. no `$DISPLAY` variable) will exit
+with an X11 initialization error.
