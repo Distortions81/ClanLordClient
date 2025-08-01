@@ -112,6 +112,9 @@ func parseDrawState(data []byte) bool {
 		if idx := bytes.IndexByte(data[p:], 0); idx >= 0 {
 			d.Name = string(data[p : p+idx])
 			p += idx + 1
+			if d.Name == playerName {
+				playerIndex = d.Index
+			}
 		} else {
 			return false
 		}
@@ -223,6 +226,7 @@ func parseDrawState(data []byte) bool {
 			if len(stateData) < 2 {
 				return false
 			}
+			idx := stateData[0]
 			typ := int(stateData[1])
 			p := 2
 			if typ&kBubbleNotCommon != 0 {
@@ -247,7 +251,9 @@ func parseDrawState(data []byte) bool {
 			bubbleData := stateData[:p+end+1]
 			if txt := decodeBubble(bubbleData); txt != "" {
 				fmt.Println(txt)
-				addMessage(txt)
+				if idx != playerIndex {
+					addMessage(txt)
+				}
 			}
 			stateData = stateData[p+end+1:]
 		}

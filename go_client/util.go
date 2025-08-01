@@ -93,6 +93,8 @@ var logFile *os.File
 var ackFrame int32
 var resendFrame int32
 var commandNum uint32 = 1
+var playerName string
+var playerIndex uint8 = 0xff
 
 const (
 	kBubbleNormal       = 0
