@@ -1,6 +1,7 @@
 package main
 
 import (
+	"image"
 	"log"
 	"sync"
 
@@ -27,6 +28,16 @@ func loadImage(id uint16) *ebiten.Image {
 	}
 	if clImages != nil {
 		if img := clImages.Get(uint32(id)); img != nil {
+			frames := clImages.NumFrames(uint32(id))
+			if frames > 1 {
+				frame := 9
+				if frame >= frames {
+					frame = 0
+				}
+				h := img.Bounds().Dy() / frames
+				y0 := frame * h
+				img = img.SubImage(image.Rect(0, y0, img.Bounds().Dx(), y0+h)).(*ebiten.Image)
+			}
 			imageCache[id] = img
 			return img
 		}
