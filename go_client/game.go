@@ -20,6 +20,7 @@ const gameAreaSizeX, gameAreaSizeY = 547, 540
 const fieldCenterX, fieldCenterY = gameAreaSizeX / 2, gameAreaSizeY / 2
 
 var mouseX, mouseY uint16
+var mouseDown bool
 
 var gameCtx context.Context
 var scale int = 3
@@ -54,6 +55,7 @@ func (g *Game) Update() error {
 	x, y := ebiten.CursorPosition()
 	mouseX = uint16(x)
 	mouseY = uint16(y)
+	mouseDown = ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
 	return nil
 }
 

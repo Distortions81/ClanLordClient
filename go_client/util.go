@@ -112,6 +112,58 @@ const (
 	kBubbleFar       = 0x80
 )
 
+const kPIMDownField = 0x0001 // mouse down; player wants to move
+
+// illumination flags from Public_cl.h
+const (
+	kLightAdjust25Pct  = 1 << 0
+	kLightAdjust50Pct  = 1 << 1
+	kLightAreaIsDarker = 1 << 2
+	kLightNoNightMods  = 1 << 3
+	kLightNoShadows    = 1 << 4
+	kLightForce100Pct  = 1 << 5
+)
+
+// inventory command values from Public_cl.h
+const (
+	kInvCmdNone = iota
+	kInvCmdFull
+	kInvCmdAdd
+	kInvCmdAddEquip
+	kInvCmdDelete
+	kInvCmdEquip
+	kInvCmdUnequip
+	kInvCmdMultiple
+	kInvCmdName
+
+	kInvCmdIndex = 0x80
+)
+
+// item slots from Public_cl.h
+const (
+	kItemSlotNotInventory = iota
+	kItemSlotNotWearable
+	kItemSlotForehead
+	kItemSlotNeck
+	kItemSlotShoulder
+	kItemSlotArms
+	kItemSlotGloves
+	kItemSlotFinger
+	kItemSlotCoat
+	kItemSlotCloak
+	kItemSlotTorso
+	kItemSlotWaist
+	kItemSlotLegs
+	kItemSlotFeet
+	kItemSlotRightHand
+	kItemSlotLeftHand
+	kItemSlotBothHands
+	kItemSlotHead
+
+	kItemSlotFirstReal = kItemSlotForehead
+	kItemSlotLastReal  = kItemSlotHead
+)
+
 const beppChar = "\302"
 
 func readKeyFileVersion(path string) (uint32, error) {
