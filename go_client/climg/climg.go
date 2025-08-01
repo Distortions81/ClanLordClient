@@ -15,23 +15,24 @@ import (
 )
 
 type dataLocation struct {
-	offset         uint32
-	size           uint32
-	entryType      uint32
-	id             uint32
-	colorBytes     []uint16
-	version        uint32
-	imageID        uint32
-	colorID        uint32
-	checksum       uint32
-	flags          uint32
-	unusedFlags    uint32
+	offset     uint32
+	size       uint32
+	entryType  uint32
+	id         uint32
+	colorBytes []uint16
+  	version        uint32
+	imageID    uint32
+	colorID    uint32
+  	checksum       uint32
+	flags      uint32
+  	unusedFlags    uint32
 	unusedFlags2   uint32
-	lightingID     int32
-	plane          int16
-	numFrames      int16
+  	lightingID     int32
+	plane      int16
+	numFrames  uint16
+  
 	numAnims       int16
-	animFrameTable [16]int16
+  	animFrameTable [16]int16
 }
 
 type CLImages struct {
@@ -142,6 +143,7 @@ func Load(path string) (*CLImages, error) {
 		if err := binary.Read(r, binary.BigEndian, &ref.plane); err != nil {
 			return nil, err
 		}
+		ref.plane = plane
 		if err := binary.Read(r, binary.BigEndian, &ref.numFrames); err != nil {
 			return nil, err
 		}
@@ -322,4 +324,13 @@ func (c *CLImages) NumFrames(id uint32) int {
 		return int(ref.numFrames)
 	}
 	return 1
+}
+
+// Plane returns the drawing plane for the given image ID. If unknown, it
+// returns 0.
+func (c *CLImages) Plane(id uint32) int {
+	if ref := c.idrefs[id]; ref != nil {
+		return int(ref.plane)
+	}
+	return 0
 }
