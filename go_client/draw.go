@@ -210,6 +210,9 @@ func parseDrawState(data []byte) bool {
 	state.prevMobiles = make(map[uint8]frameMobile, len(state.mobiles))
 	for idx, m := range state.mobiles {
 		state.prevMobiles[idx] = m
+		if idx == playerIndex && state.hasPlayerMobile {
+			state.prevPlayerMobile = m
+		}
 	}
 	const defaultInterval = time.Second / 5
 	interval := defaultInterval
@@ -229,8 +232,13 @@ func parseDrawState(data []byte) bool {
 			delete(state.mobiles, k)
 		}
 	}
+	state.hasPlayerMobile = false
 	for _, m := range mobiles {
 		state.mobiles[m.Index] = m
+		if m.Index == playerIndex {
+			state.playerMobile = m
+			state.hasPlayerMobile = true
+		}
 	}
 	stateMu.Unlock()
 

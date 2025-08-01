@@ -25,12 +25,15 @@ var scale int = 3
 
 // drawState tracks information needed by the Ebiten renderer.
 type drawState struct {
-	descriptors map[uint8]frameDescriptor
-	pictures    []framePicture
-	mobiles     map[uint8]frameMobile
-	prevMobiles map[uint8]frameMobile
-	prevTime    time.Time
-	curTime     time.Time
+	descriptors      map[uint8]frameDescriptor
+	pictures         []framePicture
+	mobiles          map[uint8]frameMobile
+	prevMobiles      map[uint8]frameMobile
+	playerMobile     frameMobile
+	prevPlayerMobile frameMobile
+	hasPlayerMobile  bool
+	prevTime         time.Time
+	curTime          time.Time
 }
 
 var (
@@ -77,15 +80,24 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 	prevTime := state.prevTime
 	curTime := state.curTime
+	player := state.playerMobile
+	prevPlayer := state.prevPlayerMobile
+	hasPlayer := state.hasPlayerMobile
 	stateMu.Unlock()
 
 	alpha := 1.0
+	camH := 0.0
+	camV := 0.0
 	if !curTime.IsZero() && curTime.After(prevTime) {
 		elapsed := time.Since(prevTime)
 		interval := curTime.Sub(prevTime)
 		alpha = float64(elapsed) / float64(interval)
 		if alpha < 0 {
 			alpha = 0
+		}
+		if hasPlayer {
+			camH = float64(prevPlayer.H)*(1-alpha) + float64(player.H)*alpha
+			camV = float64(prevPlayer.V)*(1-alpha) + float64(player.V)*alpha
 		}
 		if alpha > 1 {
 			alpha = 1
@@ -127,8 +139,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			h = float64(pm.H)*(1-alpha) + float64(m.H)*alpha
 			v = float64(pm.V)*(1-alpha) + float64(m.V)*alpha
 		}
-		x := int(h) + fieldCenterX
-		y := int(v) + fieldCenterY
+		x := int(h-camH) + fieldCenterX
+		y := int(v-camV) + fieldCenterY
 		var img *ebiten.Image
 		if d, ok := descMap[m.Index]; ok {
 			img = loadMobileFrame(d.PictID, m.State)
@@ -145,8 +157,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	drawPicture := func(p framePicture) {
-		x := int(p.H) + fieldCenterX
-		y := int(p.V) + fieldCenterY
+		x := int(float64(p.H)-camH) + fieldCenterX
+		y := int(float64(p.V)-camV) + fieldCenterY
 		if img := loadImage(p.PictID); img != nil {
 			op := &ebiten.DrawImageOptions{}
 			w, h := img.Bounds().Dx(), img.Bounds().Dy()
