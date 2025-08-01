@@ -197,8 +197,33 @@ func parseDrawState(data []byte) bool {
 	if again > len(state.pictures) {
 		again = len(state.pictures)
 	}
+
+	// compute player's movement delta so repeated pictures can scroll
+	deltaH, deltaV := 0, 0
+	var newPlayer, oldPlayer frameMobile
+	haveNew := false
+	for _, m := range mobiles {
+		if m.Index == playerIndex {
+			newPlayer = m
+			haveNew = true
+			break
+		}
+	}
+	if haveNew {
+		if prev, ok := state.mobiles[playerIndex]; ok {
+			oldPlayer = prev
+			deltaH = int(newPlayer.H) - int(oldPlayer.H)
+			deltaV = int(newPlayer.V) - int(oldPlayer.V)
+		}
+	}
+
 	newPics := make([]framePicture, again+pictCount)
-	copy(newPics, state.pictures[:again])
+	for i := 0; i < again; i++ {
+		p := state.pictures[i]
+		p.H -= int16(deltaH)
+		p.V -= int16(deltaV)
+		newPics[i] = p
+	}
 	copy(newPics[again:], pics)
 	state.pictures = newPics
 
