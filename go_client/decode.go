@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 
 	"golang.org/x/text/encoding/charmap"
@@ -115,4 +116,28 @@ func decodeMessage(m []byte) string {
 		}
 	}
 	return ""
+}
+
+func handleInfoText(data []byte) {
+	for _, line := range bytes.Split(data, []byte{'\r'}) {
+		if len(line) == 0 {
+			continue
+		}
+		if txt := decodeBEPP(line); txt != "" {
+			fmt.Println(txt)
+			addMessage(txt)
+			continue
+		}
+		if txt := decodeBubble(line); txt != "" {
+			fmt.Println(txt)
+			addMessage(txt)
+			continue
+		}
+		s := strings.TrimSpace(decodeMacRoman(line))
+		if s == "" || strings.HasPrefix(s, "/") {
+			continue
+		}
+		fmt.Println(s)
+		addMessage(s)
+	}
 }
