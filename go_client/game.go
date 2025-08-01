@@ -185,15 +185,22 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		if img != nil {
 			size := img.Bounds().Dx()
 			if onion && prevImg != nil {
+				tmp := ebiten.NewImage(size, size)
+				tmp.Clear()
+
 				op1 := &ebiten.DrawImageOptions{}
-				op1.GeoM.Translate(float64(x-size/2), float64(y-size/2))
 				op1.ColorScale.ScaleAlpha(1 - fade)
-				screen.DrawImage(prevImg, op1)
+				op1.Blend = ebiten.BlendCopy
+				tmp.DrawImage(prevImg, op1)
 
 				op2 := &ebiten.DrawImageOptions{}
-				op2.GeoM.Translate(float64(x-size/2), float64(y-size/2))
 				op2.ColorScale.ScaleAlpha(fade)
-				screen.DrawImage(img, op2)
+				op2.Blend = ebiten.BlendLighter
+				tmp.DrawImage(img, op2)
+
+				op := &ebiten.DrawImageOptions{}
+				op.GeoM.Translate(float64(x-size/2), float64(y-size/2))
+				screen.DrawImage(tmp, op)
 			} else {
 				op := &ebiten.DrawImageOptions{}
 				op.GeoM.Translate(float64(x-size/2), float64(y-size/2))
