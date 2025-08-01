@@ -15,24 +15,24 @@ import (
 )
 
 type dataLocation struct {
-	offset     uint32
-	size       uint32
-	entryType  uint32
-	id         uint32
-	colorBytes []uint16
-  	version        uint32
-	imageID    uint32
-	colorID    uint32
-  	checksum       uint32
-	flags      uint32
-  	unusedFlags    uint32
-	unusedFlags2   uint32
-  	lightingID     int32
-	plane      int16
-	numFrames  uint16
-  
+	offset       uint32
+	size         uint32
+	entryType    uint32
+	id           uint32
+	colorBytes   []uint16
+	version      uint32
+	imageID      uint32
+	colorID      uint32
+	checksum     uint32
+	flags        uint32
+	unusedFlags  uint32
+	unusedFlags2 uint32
+	lightingID   int32
+	plane        int16
+	numFrames    uint16
+
 	numAnims       int16
-  	animFrameTable [16]int16
+	animFrameTable [16]int16
 }
 
 type CLImages struct {
@@ -143,7 +143,6 @@ func Load(path string) (*CLImages, error) {
 		if err := binary.Read(r, binary.BigEndian, &ref.plane); err != nil {
 			return nil, err
 		}
-		ref.plane = plane
 		if err := binary.Read(r, binary.BigEndian, &ref.numFrames); err != nil {
 			return nil, err
 		}
