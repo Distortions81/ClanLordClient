@@ -62,13 +62,13 @@ func signExtend(v uint32, bits int) int16 {
 
 // handleDrawState decodes the packed draw state message.
 func handleDrawState(m []byte) {
-	if len(m) < 25 { // 16 byte header + 9 bytes minimum
+	if len(m) < 11 { // 2 byte tag + 9 bytes minimum
 		return
 	}
 	// Incoming draw state packets appear unencrypted.  Try decoding the
 	// payload as-is first and fall back to the simple XOR scheme if that
-	// fails.  The first 16 bytes are a header not currently interpreted.
-	data := append([]byte(nil), m[16:]...)
+	// fails.  The message begins with a 2 byte tag.
+	data := append([]byte(nil), m[2:]...)
 
 	if parseDrawState(data) {
 		return
