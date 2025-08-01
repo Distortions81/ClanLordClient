@@ -73,6 +73,10 @@ func decodeBubble(data []byte) string {
 		return "yell: " + text
 	case kBubbleThought:
 		return "think: " + text
+	case kBubblePonder:
+		return "ponder: " + text
+	case kBubbleNarrate:
+		return "console: " + text
 	default:
 		return text
 	}

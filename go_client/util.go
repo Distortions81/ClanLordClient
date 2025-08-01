@@ -95,10 +95,15 @@ var resendFrame int32
 var commandNum uint32 = 1
 
 const (
-	kBubbleNormal  = 0
-	kBubbleWhisper = 1
-	kBubbleYell    = 2
-	kBubbleThought = 3
+	kBubbleNormal       = 0
+	kBubbleWhisper      = 1
+	kBubbleYell         = 2
+	kBubbleThought      = 3
+	kBubbleRealAction   = 4
+	kBubbleMonster      = 5
+	kBubblePlayerAction = 6
+	kBubblePonder       = 7
+	kBubbleNarrate      = 8
 
 	kBubbleTypeMask  = 0x3F
 	kBubbleNotCommon = 0x40
