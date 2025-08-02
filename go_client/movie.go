@@ -31,6 +31,7 @@ func parseMovie(path string, clientVersion int) ([][]byte, error) {
 		return nil, fmt.Errorf("bad signature")
 	}
 	version := binary.BigEndian.Uint16(data[4:6])
+	revision := binary.BigEndian.Uint16(data[16:18])
 	// Arindal movies store version numbers 100x larger.
 	if version > 50000 {
 		version /= 100
@@ -42,24 +43,8 @@ func parseMovie(path string, clientVersion int) ([][]byte, error) {
 	if headerLen <= 0 || headerLen > len(data) {
 		headerLen = 24
 	}
-	if len(data) < headerLen {
-		return nil, fmt.Errorf("short file")
-	}
-	frameCount := int32(binary.BigEndian.Uint32(data[8:12]))
-	startTime := binary.BigEndian.Uint32(data[12:16])
-	var revision, oldestReader int32
-	if headerLen >= 24 {
-		if len(data) < 24 {
-			return nil, fmt.Errorf("short file")
-		}
-		revision = int32(binary.BigEndian.Uint32(data[16:20]))
-		oldestReader = int32(binary.BigEndian.Uint32(data[20:24]))
-	}
-	movieRevision = revision
-	if oldestReader != 0 && oldestReader > int32(clientVersion) {
-		return nil, fmt.Errorf("movie requires newer client: %d", oldestReader)
-	}
-	dlog("movie version %d headerLen %d frames %d starttime %d revision %d oldestReader %d", version, headerLen, frameCount, startTime, revision, oldestReader)
+	dlog("movie version %d.%d headerLen %d", version, revision, headerLen)
+
 	pos := headerLen
 	sign := []byte{0xde, 0xad, 0xbe, 0xef}
 	frames := [][]byte{}
@@ -89,7 +74,7 @@ func parseMovie(path string, clientVersion int) ([][]byte, error) {
 		}
 		if flags&flagMobileData != 0 {
 			dlog("MobileData table at %d", pos)
-			pos = parseMobileTable(data, pos, revision)
+			pos = parseMobileTable(data, pos, version, revision)
 			continue
 		}
 		if flags&flagPictureTable != 0 {
@@ -133,14 +118,40 @@ func parseMovie(path string, clientVersion int) ([][]byte, error) {
 	return frames, nil
 }
 
-func parseMobileTable(data []byte, pos int, revision int32) int {
-	_ = revision
-	const (
-		descTableSize = 266
-		descSize      = 156
-		colorsOffset  = 52
-		nameOffset    = 82
-	)
+// parseMobileTable decodes the descriptor table for a frame.  Descriptor
+// layouts have changed many times over Clan Lord's long history; the version
+// checks below mirror the Mac client's ReadMobileTable/Read1Descriptor logic.
+// Version breakpoints correspond to kOldestMovieVersion and friends in the
+// original source.
+func parseMobileTable(data []byte, pos int, version, revision uint16) int {
+	const descTableSize = 266 // kDescTableSize
+
+	type layout struct {
+		descSize            int
+		colorsOffset        int
+		nameOffset          int
+		numColorsOffset     int
+		bubbleCounterOffset int
+	}
+
+	var l layout
+	switch {
+	case version > 141: // v142+ (current format)
+		l = layout{descSize: 156, colorsOffset: 56, nameOffset: 86, numColorsOffset: 48, bubbleCounterOffset: 28}
+	case version > 113: // v114-141
+		l = layout{descSize: 150, colorsOffset: 52, nameOffset: 82, numColorsOffset: 44, bubbleCounterOffset: 24}
+	case version > 105: // v106-113
+		l = layout{descSize: 142, colorsOffset: 52, nameOffset: 82, numColorsOffset: 44, bubbleCounterOffset: 24}
+	case version > 97: // v98-105
+		l = layout{descSize: 130, colorsOffset: 40, nameOffset: 70, numColorsOffset: 32, bubbleCounterOffset: 24}
+	default: // v80-97
+		if version < 80 {
+			dlog("unsupported mobile table version %d", version)
+			return pos
+		}
+		l = layout{descSize: 126, colorsOffset: 36, nameOffset: 66, numColorsOffset: 28, bubbleCounterOffset: 20}
+	}
+
 	for pos+4 <= len(data) {
 		idx := int32(binary.BigEndian.Uint32(data[pos : pos+4]))
 		pos += 4
@@ -151,6 +162,7 @@ func parseMobileTable(data []byte, pos int, revision int32) int {
 		if !hasMobile {
 			idx -= descTableSize
 		}
+
 		var mob frameMobile
 		if hasMobile {
 			if pos+16 > len(data) {
@@ -163,38 +175,49 @@ func parseMobileTable(data []byte, pos int, revision int32) int {
 			mob.Colors = uint8(binary.BigEndian.Uint32(data[pos+12 : pos+16]))
 			pos += 16
 		}
-		if pos+descSize > len(data) {
+
+		if pos+l.descSize > len(data) {
 			return len(data)
 		}
-		buf := data[pos : pos+descSize]
-		pos += descSize
+		buf := data[pos : pos+l.descSize]
+		pos += l.descSize
+
 		d := frameDescriptor{Index: uint8(idx)}
 		d.Type = uint8(binary.BigEndian.Uint32(buf[16:20]))
 		pict := binary.BigEndian.Uint32(buf[0:4])
 		d.PictID = uint16(pict & 0xffff)
-		numColors := int(binary.BigEndian.Uint32(buf[44:48]))
+
+		numColors := int(binary.BigEndian.Uint32(buf[l.numColorsOffset : l.numColorsOffset+4]))
 		if numColors < 0 || numColors > 30 {
 			numColors = 30
 		}
-		end := colorsOffset + numColors
+		end := l.colorsOffset + numColors
 		if end > len(buf) {
 			end = len(buf)
 		}
-		d.Colors = append([]byte(nil), buf[colorsOffset:end]...)
-		nameBytes := buf[nameOffset : nameOffset+48]
+		d.Colors = append([]byte(nil), buf[l.colorsOffset:end]...)
+
+		nameBytes := buf[l.nameOffset : l.nameOffset+48]
 		if i := bytes.IndexByte(nameBytes, 0); i >= 0 {
 			d.Name = string(nameBytes[:i])
 		} else {
 			d.Name = string(nameBytes)
 		}
-		bubbleCounter := int32(binary.BigEndian.Uint32(buf[28:32]))
+
+		bubbleCounter := int32(binary.BigEndian.Uint32(buf[l.bubbleCounterOffset : l.bubbleCounterOffset+4]))
 		if bubbleCounter != 0 {
 			if pos+2 > len(data) {
 				return len(data)
 			}
-			l := int(binary.BigEndian.Uint16(data[pos : pos+2]))
-			pos += 2 + l
+			lgt := int(binary.BigEndian.Uint16(data[pos : pos+2]))
+			pos += 2
+			if pos+lgt > len(data) {
+				return len(data)
+			}
+			_ = string(data[pos : pos+lgt]) // bubble text, ignored
+			pos += lgt
 		}
+
 		stateMu.Lock()
 		if hasMobile {
 			if state.mobiles == nil {
