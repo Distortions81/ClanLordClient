@@ -145,19 +145,28 @@ func pictureShift(prev, cur []framePicture) (int, int, bool) {
 }
 
 // handleDrawState decodes the packed draw state message.
+//
+// The C client always applies the simple XOR scheme to draw state packets from
+// the server, while movie files store their frames unencrypted. To emulate that
+// behaviour we try decoding the packet after applying SimpleEncrypt(). If that
+// fails (which happens when reading unencrypted movie data) we undo the
+// encryption and decode again.
 func handleDrawState(m []byte) {
 	if len(m) < 11 { // 2 byte tag + 9 bytes minimum
 		return
 	}
-	// Incoming draw state packets appear unencrypted.  Try decoding the
-	// payload as-is first and fall back to the simple XOR scheme if that
-	// fails.  The message begins with a 2 byte tag.
+
 	data := append([]byte(nil), m[2:]...)
 
+	// First attempt to parse assuming the payload is encrypted like the C
+	// client expects from the live server.
+	simpleEncrypt(data)
 	if parseDrawState(data) {
 		return
 	}
 
+	// If parsing failed, assume the data was unencrypted (e.g. from a
+	// movie file). Undo the encryption and try once more.
 	simpleEncrypt(data)
 	if !parseDrawState(data) {
 		dlog("failed to parse draw state: % x", data[:16])
