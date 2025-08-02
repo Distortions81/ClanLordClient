@@ -39,10 +39,6 @@ const (
 	maxBubbles     = 64
 )
 
-// pictureShiftFails counts picture shift failures for debugging.
-var pictureShiftFails int
-
-
 // bitReader helps decode the packed picture fields.
 type bitReader struct {
 	data   []byte
@@ -107,8 +103,8 @@ func pictureShift(prev, cur []framePicture) (int, int, bool) {
 		return 0, 0, false
 	}
 
-	counts := make(map[[2]int]float64)
-	var total float64
+	counts := make(map[[2]int]int)
+	total := 0
 	maxInt := int(^uint(0) >> 1)
 	for _, p := range prev {
 		if !onScreen(p) {
@@ -132,9 +128,8 @@ func pictureShift(prev, cur []framePicture) (int, int, bool) {
 			}
 		}
 		if matched {
-			weight := 1.0 / float64(bestDist+1)
-			counts[[2]int{bestDx, bestDy}] += weight
-			total += weight
+			counts[[2]int{bestDx, bestDy}]++
+			total++
 		}
 	}
 	if total == 0 {
@@ -143,16 +138,16 @@ func pictureShift(prev, cur []framePicture) (int, int, bool) {
 	}
 
 	best := [2]int{}
-	var bestCount float64
+	bestCount := 0
 	for k, c := range counts {
 		if c > bestCount {
 			best = k
 			bestCount = c
 		}
 	}
-	dlog("pictureShift: counts=%v best=%v count=%.2f total=%.2f", counts, best, bestCount, total)
-	if bestCount < total/3 {
-		dlog("pictureShift: no significant shift best=%.2f total=%.2f", bestCount, total)
+	dlog("pictureShift: counts=%v best=%v count=%d total=%d", counts, best, bestCount, total)
+	if bestCount*2 <= total {
+		dlog("pictureShift: no majority best=%d total=%d", bestCount, total)
 		return 0, 0, false
 	}
 	return best[0], best[1], true
@@ -353,36 +348,24 @@ func parseDrawState(data []byte) bool {
 	newPics := make([]framePicture, again+pictCount)
 	copy(newPics, prevPics[:again])
 	copy(newPics[again:], pics)
-	shiftOK := true
 	if interp {
-		var ok bool
 		dx, dy, ok := pictureShift(prevPics, newPics)
 		dlog("interp pictures again=%d prev=%d cur=%d shift=(%d,%d) ok=%t", again, len(prevPics), len(newPics), dx, dy, ok)
 		if !ok {
 			dlog("prev pics: %s", picturesSummary(prevPics))
 			dlog("new  pics: %s", picturesSummary(newPics))
-			state.picShiftX = 0
-			state.picShiftY = 0
-		} else {
+		}
+		if ok {
 			state.picShiftX = dx
 			state.picShiftY = dy
+		} else {
+			state.picShiftX = 0
+			state.picShiftY = 0
 		}
-		shiftOK = ok
 	}
-	newArea := pictAgain == 0 || !shiftOK
-	if newArea {
-		state.picShiftX = 0
-		state.picShiftY = 0
-		state.pictures = append([]framePicture(nil), pics...)
-		state.prevMobiles = nil
-		state.prevDescs = nil
-		state.prevTime = time.Time{}
-		state.curTime = time.Time{}
-	} else {
-		state.pictures = newPics
-	}
+	state.pictures = newPics
 
-	needAnimUpdate := !newArea && (interp || (onion && changed))
+	needAnimUpdate := interp || (onion && changed)
 	if needAnimUpdate {
 		// save previous mobile positions for interpolation and fading
 		if state.prevMobiles == nil {
