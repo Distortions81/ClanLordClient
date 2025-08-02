@@ -17,7 +17,9 @@ const (
 const movieSignature = 0xdeadbeef
 const oldestMovieVersion = 193
 
-func parseMovie(path string) ([][]byte, error) {
+var movieRevision int32
+
+func parseMovie(path string, clientVersion int) ([][]byte, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -42,6 +44,7 @@ func parseMovie(path string) ([][]byte, error) {
 		headerLen = 24
 	}
 	dlog("movie version %d.%d headerLen %d", version, revision, headerLen)
+
 	pos := headerLen
 	sign := []byte{0xde, 0xad, 0xbe, 0xef}
 	frames := [][]byte{}
