@@ -206,8 +206,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		v := float64(m.V)
 		if interp {
 			if pm, ok := prevMobiles[m.Index]; ok {
-				h = float64(pm.H)*(1-alpha) + float64(m.H)*alpha
-				v = float64(pm.V)*(1-alpha) + float64(m.V)*alpha
+				dh := int(m.H) - int(pm.H)
+				dv := int(m.V) - int(pm.V)
+				if dh*dh+dv*dv <= maxInterpPixels*maxInterpPixels {
+					h = float64(pm.H)*(1-alpha) + float64(m.H)*alpha
+					v = float64(pm.V)*(1-alpha) + float64(m.V)*alpha
+				}
 			}
 		}
 		x := (int(math.Round(h)) + fieldCenterX) * scale
