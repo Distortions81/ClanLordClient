@@ -183,33 +183,29 @@ func parseDrawState(data []byte) bool {
 	p++
 	descs := make([]frameDescriptor, 0, descCount)
 	for i := 0; i < descCount && p < len(data); i++ {
-		if p+4 > len(data) {
+		if p+6 > len(data) {
 			return false
 		}
 		d := frameDescriptor{}
 		d.Index = data[p]
 		d.Type = data[p+1]
 		d.PictID = binary.BigEndian.Uint16(data[p+2:])
-		p += 4
-		if idx := bytes.IndexByte(data[p:], 0); idx >= 0 {
-			d.Name = string(data[p : p+idx])
-			p += idx + 1
-			if d.Name == playerName {
-				playerIndex = d.Index
-			}
-		} else {
+		nameLen := int(data[p+4])
+		colorLen := int(data[p+5])
+		p += 6
+		if p+nameLen > len(data) {
 			return false
 		}
-		if p >= len(data) {
+		d.Name = string(data[p : p+nameLen])
+		p += nameLen
+		if d.Name == playerName {
+			playerIndex = d.Index
+		}
+		if p+colorLen > len(data) {
 			return false
 		}
-		cnt := int(data[p])
-		p++
-		if p+cnt > len(data) {
-			return false
-		}
-		d.Colors = append([]byte(nil), data[p:p+cnt]...)
-		p += cnt
+		d.Colors = append([]byte(nil), data[p:p+colorLen]...)
+		p += colorLen
 		updatePlayerAppearance(d.Name, d.PictID, d.Colors)
 		descs = append(descs, d)
 	}
