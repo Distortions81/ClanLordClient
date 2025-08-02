@@ -11,9 +11,11 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
+// tcpConn is the active TCP connection to the game server.
 var tcpConn net.Conn
 
-func sendIdentifiers(conn net.Conn, clientVersion, imagesVersion, soundsVersion uint32) error {
+// sendClientIdentifiers transmits the client, image and sound versions to the server.
+func sendClientIdentifiers(connection net.Conn, clientVersion, imagesVersion, soundsVersion uint32) error {
 	const kMsgIdentifiers = 19
 	uname := os.Getenv("USER")
 	if uname == "" {
@@ -45,36 +47,39 @@ func sendIdentifiers(conn net.Conn, clientVersion, imagesVersion, soundsVersion 
 	copy(buf[16:], data)
 	simpleEncrypt(buf[16:])
 	dlog("identifiers client=%d images=%d sounds=%d", clientVersion, imagesVersion, soundsVersion)
-	return sendMessage(conn, buf)
+	return sendTCPMessage(connection, buf)
 }
 
-func sendMessage(conn net.Conn, msg []byte) error {
+// sendTCPMessage writes a length-prefixed message to the TCP connection.
+func sendTCPMessage(connection net.Conn, payload []byte) error {
 	var size [2]byte
-	binary.BigEndian.PutUint16(size[:], uint16(len(msg)))
-	if _, err := conn.Write(size[:]); err != nil {
+	binary.BigEndian.PutUint16(size[:], uint16(len(payload)))
+	if _, err := connection.Write(size[:]); err != nil {
 		return err
 	}
-	_, err := conn.Write(msg)
-	tag := binary.BigEndian.Uint16(msg[:2])
-	dlog("send tcp tag %d len %d", tag, len(msg))
-	hexDump("send", msg)
+	_, err := connection.Write(payload)
+	tag := binary.BigEndian.Uint16(payload[:2])
+	dlog("send tcp tag %d len %d", tag, len(payload))
+	hexDump("send", payload)
 	return err
 }
 
-func sendUDPMessage(conn net.Conn, msg []byte) error {
+// sendUDPMessage writes a length-prefixed message to the UDP connection.
+func sendUDPMessage(connection net.Conn, payload []byte) error {
 	var size [2]byte
-	binary.BigEndian.PutUint16(size[:], uint16(len(msg)))
-	buf := append(size[:], msg...)
-	_, err := conn.Write(buf)
-	tag := binary.BigEndian.Uint16(msg[:2])
-	dlog("send udp tag %d len %d", tag, len(msg))
-	hexDump("send", msg)
+	binary.BigEndian.PutUint16(size[:], uint16(len(payload)))
+	buf := append(size[:], payload...)
+	_, err := connection.Write(buf)
+	tag := binary.BigEndian.Uint16(payload[:2])
+	dlog("send udp tag %d len %d", tag, len(payload))
+	hexDump("send", payload)
 	return err
 }
 
-func readUDPMessage(conn net.Conn) ([]byte, error) {
+// readUDPMessage reads a single length-prefixed message from the UDP connection.
+func readUDPMessage(connection net.Conn) ([]byte, error) {
 	buf := make([]byte, 65535)
-	n, err := conn.Read(buf)
+	n, err := connection.Read(buf)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +97,8 @@ func readUDPMessage(conn net.Conn) ([]byte, error) {
 	return msg, nil
 }
 
-func sendPlayerInput(conn net.Conn) error {
+// sendPlayerInput sends the current mouse state to the server via UDP.
+func sendPlayerInput(connection net.Conn) error {
 	const kMsgPlayerInput = 3
 	flags := uint16(0)
 
@@ -104,28 +110,29 @@ func sendPlayerInput(conn net.Conn) error {
 	if mouseDown {
 		flags = kPIMDownField
 	}
-	buf := make([]byte, 20+1)
-	binary.BigEndian.PutUint16(buf[0:2], kMsgPlayerInput)
-	binary.BigEndian.PutUint16(buf[2:4], uint16(mouseX))
-	binary.BigEndian.PutUint16(buf[4:6], uint16(mouseY))
-	binary.BigEndian.PutUint16(buf[6:8], flags)
-	binary.BigEndian.PutUint32(buf[8:12], uint32(ackFrame))
-	binary.BigEndian.PutUint32(buf[12:16], uint32(resendFrame))
-	binary.BigEndian.PutUint32(buf[16:20], commandNum)
-	buf[20] = 0
+	packet := make([]byte, 20+1)
+	binary.BigEndian.PutUint16(packet[0:2], kMsgPlayerInput)
+	binary.BigEndian.PutUint16(packet[2:4], uint16(mouseX))
+	binary.BigEndian.PutUint16(packet[4:6], uint16(mouseY))
+	binary.BigEndian.PutUint16(packet[6:8], flags)
+	binary.BigEndian.PutUint32(packet[8:12], uint32(ackFrame))
+	binary.BigEndian.PutUint32(packet[12:16], uint32(resendFrame))
+	binary.BigEndian.PutUint32(packet[16:20], commandNum)
+	packet[20] = 0
 	commandNum++
 	dlog("player input ack=%d resend=%d cmd=%d mouse=%d,%d flags=%#x", ackFrame, resendFrame, commandNum-1, mouseX, mouseY, flags)
-	return sendUDPMessage(conn, buf)
+	return sendUDPMessage(connection, packet)
 }
 
-func readMessage(conn net.Conn) ([]byte, error) {
+// readTCPMessage reads a single length-prefixed message from the TCP connection.
+func readTCPMessage(connection net.Conn) ([]byte, error) {
 	var sizeBuf [2]byte
-	if _, err := io.ReadFull(conn, sizeBuf[:]); err != nil {
+	if _, err := io.ReadFull(connection, sizeBuf[:]); err != nil {
 		return nil, err
 	}
 	sz := binary.BigEndian.Uint16(sizeBuf[:])
 	buf := make([]byte, sz)
-	if _, err := io.ReadFull(conn, buf); err != nil {
+	if _, err := io.ReadFull(connection, buf); err != nil {
 		return nil, err
 	}
 	tag := binary.BigEndian.Uint16(buf[:2])
@@ -134,32 +141,42 @@ func readMessage(conn net.Conn) ([]byte, error) {
 	return buf, nil
 }
 
-func requestCharList(conn net.Conn, account, password string, challenge []byte, clientVersion, imagesVersion, soundsVersion uint32) ([]string, error) {
+// requestCharList fetches the list of characters for the account from the server.
+func requestCharList(connection net.Conn, account, password string, challenge []byte, clientVersion, imagesVersion, soundsVersion uint32) ([]string, error) {
+	if err := sendCharListRequest(connection, account, password, challenge, clientVersion, imagesVersion, soundsVersion); err != nil {
+		return nil, err
+	}
+	resp, err := readTCPMessage(connection)
+	if err != nil {
+		return nil, err
+	}
+	return parseCharListResponse(resp)
+}
+
+// sendCharListRequest builds and sends a character list request to the server.
+func sendCharListRequest(connection net.Conn, account, password string, challenge []byte, clientVersion, imagesVersion, soundsVersion uint32) error {
 	answer, err := answerChallenge(password, challenge)
 	if err != nil {
-		return nil, err
+		return err
 	}
-
 	const kMsgCharList = 14
-	buf := make([]byte, 16+len(account)+1+len(answer))
-	binary.BigEndian.PutUint16(buf[0:2], kMsgCharList)
-	binary.BigEndian.PutUint16(buf[2:4], 0)
-	binary.BigEndian.PutUint32(buf[4:8], clientVersion)
-	binary.BigEndian.PutUint32(buf[8:12], imagesVersion)
-	binary.BigEndian.PutUint32(buf[12:16], soundsVersion)
-	copy(buf[16:], []byte(account))
-	buf[16+len(account)] = 0
-	copy(buf[17+len(account):], answer)
-	simpleEncrypt(buf[16:])
-	if err := sendMessage(conn, buf); err != nil {
-		return nil, err
-	}
+	packet := make([]byte, 16+len(account)+1+len(answer))
+	binary.BigEndian.PutUint16(packet[0:2], kMsgCharList)
+	binary.BigEndian.PutUint16(packet[2:4], 0)
+	binary.BigEndian.PutUint32(packet[4:8], clientVersion)
+	binary.BigEndian.PutUint32(packet[8:12], imagesVersion)
+	binary.BigEndian.PutUint32(packet[12:16], soundsVersion)
+	copy(packet[16:], []byte(account))
+	packet[16+len(account)] = 0
+	copy(packet[17+len(account):], answer)
+	simpleEncrypt(packet[16:])
 	dlog("request character list for %s", account)
+	return sendTCPMessage(connection, packet)
+}
 
-	resp, err := readMessage(conn)
-	if err != nil {
-		return nil, err
-	}
+// parseCharListResponse decrypts and parses the character list response.
+func parseCharListResponse(resp []byte) ([]string, error) {
+	const kMsgCharList = 14
 	if len(resp) < 28 {
 		return nil, fmt.Errorf("short char list resp")
 	}
@@ -182,10 +199,7 @@ func requestCharList(conn net.Conn, account, password string, challenge []byte, 
 	var names []string
 	for len(namesData) > 0 {
 		i := bytes.IndexByte(namesData, 0)
-		if i < 0 {
-			break
-		}
-		if i == 0 {
+		if i <= 0 {
 			break
 		}
 		names = append(names, string(namesData[:i]))
@@ -195,14 +209,15 @@ func requestCharList(conn net.Conn, account, password string, challenge []byte, 
 	return names, nil
 }
 
-func sendCommandText(conn net.Conn, txt string) error {
+// sendCommandText sends a text command to the server over TCP.
+func sendCommandText(connection net.Conn, txt string) error {
 	const kMsgCommandText = 6
 	data := append([]byte(txt), 0)
-	buf := make([]byte, 16+len(data))
-	binary.BigEndian.PutUint16(buf[0:2], kMsgCommandText)
-	binary.BigEndian.PutUint16(buf[2:4], 0)
-	copy(buf[16:], data)
-	simpleEncrypt(buf[16:])
+	packet := make([]byte, 16+len(data))
+	binary.BigEndian.PutUint16(packet[0:2], kMsgCommandText)
+	binary.BigEndian.PutUint16(packet[2:4], 0)
+	copy(packet[16:], data)
+	simpleEncrypt(packet[16:])
 	fmt.Printf("send command: %s\n", txt)
-	return sendMessage(conn, buf)
+	return sendTCPMessage(connection, packet)
 }
