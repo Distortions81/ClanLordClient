@@ -2,6 +2,7 @@ package main
 
 import (
 	"image"
+	"image/color"
 	"log"
 	"sync"
 
@@ -26,6 +27,18 @@ var (
 	imageMu  sync.Mutex
 	clImages *climg.CLImages
 )
+
+// addBorder returns a new image with a one pixel transparent border around img.
+// This helps avoid texture bleeding when sprites are scaled or filtered.
+func addBorder(img *ebiten.Image) *ebiten.Image {
+	w, h := img.Bounds().Dx(), img.Bounds().Dy()
+	bordered := ebiten.NewImage(w+2, h+2)
+	bordered.Fill(color.RGBA{0, 0, 0, 0})
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Translate(1, 1)
+	bordered.DrawImage(img, op)
+	return bordered
+}
 
 // loadImage retrieves the image for the specified picture ID. Images are
 // cached after the first load to avoid reopening files each frame.
@@ -72,6 +85,7 @@ func loadImage(id uint16) *ebiten.Image {
 			h := sheet.Bounds().Dy() / frames
 			sheet = sheet.SubImage(image.Rect(0, 0, sheet.Bounds().Dx(), h)).(*ebiten.Image)
 		}
+		sheet = addBorder(sheet)
 		imageMu.Lock()
 		imageCache[id] = sheet
 		imageMu.Unlock()
@@ -113,6 +127,7 @@ func loadMobileFrame(id uint16, state uint8) *ebiten.Image {
 		return nil
 	}
 	frame := sheet.SubImage(image.Rect(x, y, x+size, y+size)).(*ebiten.Image)
+	frame = addBorder(frame)
 	imageMu.Lock()
 	mobileCache[key] = frame
 	imageMu.Unlock()

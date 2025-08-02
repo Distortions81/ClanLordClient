@@ -18,6 +18,7 @@ import (
 
 const gameAreaSizeX, gameAreaSizeY = 547, 540
 const fieldCenterX, fieldCenterY = gameAreaSizeX / 2, gameAreaSizeY / 2
+const epsilon = 0.01 // in pixels
 
 var mouseX, mouseY uint16
 var mouseDown bool
@@ -230,7 +231,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			op := &ebiten.DrawImageOptions{}
 			op.Filter = drawFilter
 			w, h := img.Bounds().Dx(), img.Bounds().Dy()
-			op.GeoM.Scale(float64(scale), float64(scale))
+			if linear {
+				op.GeoM.Scale(float64(scale)+epsilon, float64(scale)+epsilon)
+			} else {
+				op.GeoM.Scale(float64(scale), float64(scale))
+
+			}
 			op.GeoM.Translate(float64(x-w*scale/2), float64(y-h*scale/2))
 			screen.DrawImage(img, op)
 		} else {
