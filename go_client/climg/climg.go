@@ -51,6 +51,7 @@ const (
 
 	pictDefFlagTransparent = 0x8000
 	pictDefBlendMask       = 0x0003
+	pictDefCustomColors    = 0x2000
 )
 
 func Load(path string) (*CLImages, error) {
@@ -278,9 +279,26 @@ func (c *CLImages) Get(id uint32) *ebiten.Image {
 		}
 	}
 
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	// prepare color table and handle custom palette row if present
 	pal := palette // from palette.go
-	col := colLoc.colorBytes
+	col := append([]uint16(nil), colLoc.colorBytes...)
+
+	// if the image embeds a custom color lookup row, use it to remap
+	// the first 'width' entries of the color table and then discard the
+	// row before decoding the remaining pixels.
+	if ref.flags&pictDefCustomColors != 0 {
+		orig := append([]uint16(nil), col...)
+		for i := 0; i < width && i < len(col) && i < len(data); i++ {
+			idx := int(data[i])
+			if idx < len(orig) {
+				col[i] = orig[idx]
+			}
+		}
+		data = data[width:]
+		height--
+	}
+	pixelCount = len(data)
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
 
 	alpha := uint8(255)
 	switch ref.flags & pictDefBlendMask {
