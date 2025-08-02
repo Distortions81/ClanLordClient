@@ -84,7 +84,7 @@ func (g *Game) Update() error {
 		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
 			txt := strings.TrimSpace(string(inputText))
 			if txt != "" {
-				sendChat(txt)
+				sendCommand(txt)
 			}
 			inputActive = false
 			inputText = inputText[:0]
@@ -521,11 +521,10 @@ loop:
 	}
 }
 
-func sendChat(txt string) {
+func sendCommand(txt string) {
 	if tcpConn != nil {
 		if err := sendCommandText(tcpConn, txt); err != nil {
-			fmt.Printf("send chat: %v\n", err)
+			fmt.Printf("send command: %v\n", err)
 		}
 	}
-	addMessage(txt)
 }
