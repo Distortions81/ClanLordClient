@@ -2,21 +2,26 @@ package main
 
 import (
 	"encoding/binary"
+	"fmt"
 	"testing"
 )
 
 func TestDecodeBubbleStripsTags(t *testing.T) {
 	data := []byte{0x00, byte(kBubbleWhisper), 0x8A, 0xC2, 'p', 'n', ' ', 'p', 'i', 'n', 'g', '!', 0}
-	got := decodeBubble(data)
-	if got != "whisper: ping!" {
-		t.Fatalf("got %q", got)
+	verb, text := decodeBubble(data)
+	if verb != "whispers" || text != "ping!" {
+		t.Fatalf("got verb %q text %q", verb, text)
+	}
+	assembled := fmt.Sprintf("Bob %s, %q", verb, text)
+	if assembled != "Bob whispers, \"ping!\"" {
+		t.Fatalf("assembled %q", assembled)
 	}
 }
 
 func TestDecodeBubbleEmptyAfterStripping(t *testing.T) {
 	data := []byte{0x00, byte(kBubbleNormal), 0x8A, 0xC2, 'p', 'n', 0}
-	if got := decodeBubble(data); got != "" {
-		t.Fatalf("got %q", got)
+	if verb, txt := decodeBubble(data); verb != "" || txt != "" {
+		t.Fatalf("got %q %q", verb, txt)
 	}
 }
 

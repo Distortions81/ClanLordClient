@@ -68,33 +68,32 @@ func stripBEPPTags(b []byte) []byte {
 	return out
 }
 
-func decodeBubble(data []byte) string {
+func decodeBubble(data []byte) (verb, text string) {
 	if len(data) < 2 {
-		return ""
+		return "", ""
 	}
 	typ := int(data[1])
 	p := 2
 	if typ&kBubbleNotCommon != 0 {
 		if len(data) < p+1 {
-			return ""
+			return "", ""
 		}
 		p++
 	}
 	if typ&kBubbleFar != 0 {
 		if len(data) < p+4 {
-			return ""
+			return "", ""
 		}
 		p += 4
 	}
 	if len(data) <= p {
-		return ""
+		return "", ""
 	}
 	msgData := stripBEPPTags(data[p:])
 	if i := bytes.IndexByte(msgData, 0); i >= 0 {
 		msgData = msgData[:i]
 	}
 	lines := bytes.Split(msgData, []byte{'\r'})
-	var text string
 	for _, ln := range lines {
 		if len(ln) == 0 {
 			continue
@@ -113,24 +112,25 @@ func decodeBubble(data []byte) string {
 		}
 	}
 	if text == "" {
-		return ""
+		return "", ""
 	}
 	switch typ & kBubbleTypeMask {
 	case kBubbleNormal:
-		return "say: " + text
+		verb = "says"
 	case kBubbleWhisper:
-		return "whisper: " + text
+		verb = "whispers"
 	case kBubbleYell:
-		return "yell: " + text
+		verb = "yells"
 	case kBubbleThought:
-		return "think: " + text
+		verb = "thinks"
 	case kBubblePonder:
-		return "ponder: " + text
+		verb = "ponders"
 	case kBubbleNarrate:
-		return "console: " + text
+		// narrate bubbles have no verb
 	default:
-		return text
+		// unknown bubble types return no verb
 	}
+	return verb, text
 }
 
 func decodeMessage(m []byte) string {
@@ -144,7 +144,7 @@ func decodeMessage(m []byte) string {
 		}
 		return ""
 	}
-	if s := decodeBubble(data); s != "" {
+	if _, s := decodeBubble(data); s != "" {
 		return s
 	}
 	if i := bytes.IndexByte(data, 0); i >= 0 {
@@ -164,7 +164,7 @@ func decodeMessage(m []byte) string {
 		}
 		return ""
 	}
-	if s := decodeBubble(data); s != "" {
+	if _, s := decodeBubble(data); s != "" {
 		return s
 	}
 	if i := bytes.IndexByte(data, 0); i >= 0 {
@@ -191,7 +191,7 @@ func handleInfoText(data []byte) {
 			}
 			continue
 		}
-		if txt := decodeBubble(line); txt != "" {
+		if _, txt := decodeBubble(line); txt != "" {
 			fmt.Println(txt)
 			addMessage(txt)
 			continue
