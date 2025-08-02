@@ -52,6 +52,7 @@ const (
 	pictDefFlagTransparent = 0x8000
 	pictDefBlendMask       = 0x0003
 	pictDefCustomColors    = 0x2000
+	maxCustomColors        = 30
 )
 
 func Load(path string) (*CLImages, error) {
@@ -283,15 +284,25 @@ func (c *CLImages) Get(id uint32) *ebiten.Image {
 	pal := palette // from palette.go
 	col := append([]uint16(nil), colLoc.colorBytes...)
 
-	// if the image embeds a custom color lookup row, use it to remap
-	// the first 'width' entries of the color table and then discard the
-	// row before decoding the remaining pixels.
+	// If the image embeds a custom color lookup row, use its first few
+	// pixels to remap the initial entries of the color table. Skip the
+	// transparent color at index 0 and limit the remap to the known
+	// custom-color count so we don't clobber unrelated palette entries.
+	// Drop the palette row from the pixel data before constructing the
+	// final image so the strip doesn't render onscreen.
 	if ref.flags&pictDefCustomColors != 0 {
 		orig := append([]uint16(nil), col...)
-		for i := 0; i < width && i < len(col) && i < len(data); i++ {
+		n := maxCustomColors
+		if n > width {
+			n = width
+		}
+		if n > len(data) {
+			n = len(data)
+		}
+		for i := 0; i < n && i+1 < len(col); i++ {
 			idx := int(data[i])
 			if idx < len(orig) {
-				col[i] = orig[idx]
+				col[i+1] = orig[idx]
 			}
 		}
 		data = data[width:]
