@@ -28,8 +28,8 @@ func main() {
 	clmov := flag.String("clmov", "", "play back a .clMov file")
 	flag.IntVar(&scale, "scale", 2, "screen scale factor (upscaling)")
 	flag.BoolVar(&interp, "interp", true, "enable motion interpolation (smoothing)")
-	flag.BoolVar(&onion, "onion", false, "cross-fade sprite animations")
 	flag.BoolVar(&linear, "linear", false, "use linear filtering (softer images)")
+	flag.BoolVar(&onion, "onion", false, "cross-fade sprite animations (smoother animations)")
 	clientVer := flag.Int("client-version", 1440, "client version number (for testing)")
 	flag.BoolVar(&debug, "debug", false, "enable verbose/debug logging")
 
