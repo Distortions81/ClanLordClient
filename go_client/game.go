@@ -9,11 +9,13 @@ import (
 	"math"
 	"net"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 const gameAreaSizeX, gameAreaSizeY = 547, 540
@@ -22,6 +24,10 @@ const epsilon = 0.01 // in pixels
 
 var mouseX, mouseY int16
 var mouseDown bool
+
+var inputActive bool
+var inputText []rune
+var inputBg *ebiten.Image
 
 var gameCtx context.Context
 var scale int = 3
@@ -56,6 +62,35 @@ var (
 type Game struct{}
 
 func (g *Game) Update() error {
+	if inputActive {
+		inputText = append(inputText, ebiten.AppendInputChars(nil)...)
+		if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
+			if len(inputText) > 0 {
+				inputText = inputText[:len(inputText)-1]
+			}
+		} else if d := inpututil.KeyPressDuration(ebiten.KeyBackspace); d > 30 && d%3 == 0 {
+			if len(inputText) > 0 {
+				inputText = inputText[:len(inputText)-1]
+			}
+		}
+		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
+			txt := strings.TrimSpace(string(inputText))
+			if txt != "" {
+				sendChat(txt)
+			}
+			inputActive = false
+			inputText = inputText[:0]
+		}
+		if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+			inputActive = false
+			inputText = inputText[:0]
+		}
+	} else {
+		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
+			inputActive = true
+			inputText = inputText[:0]
+		}
+	}
 
 	return nil
 }
@@ -316,6 +351,16 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	for i, msg := range msgs {
 		ebitenutil.DebugPrintAt(screen, msg, 4*scale, startY+12*i*scale)
 	}
+	if inputActive {
+		if inputBg == nil {
+			inputBg = ebiten.NewImage(gameAreaSizeX*scale, 12*scale)
+			inputBg.Fill(color.RGBA{0, 0, 0, 128})
+		}
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Translate(0, float64(gameAreaSizeY*scale-12*scale))
+		screen.DrawImage(inputBg, op)
+		ebitenutil.DebugPrintAt(screen, string(inputText), 4*scale, gameAreaSizeY*scale-10*scale)
+	}
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -416,4 +461,8 @@ loop:
 		default:
 		}
 	}
+}
+
+func sendChat(txt string) {
+	addMessage(txt)
 }
