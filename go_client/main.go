@@ -24,6 +24,7 @@ func main() {
 	host := flag.String("host", "server.deltatao.com:5010", "server address")
 	name := flag.String("name", "demo", "character name")
 	account := flag.String("account", "", "account name")
+	accountPass := flag.String("account-pass", "", "account password (for character list)")
 	pass := flag.String("pass", "demo", "character password")
 	clmov := flag.String("clmov", "", "play back a .clMov file")
 	flag.IntVar(&scale, "scale", 2, "image upscaling")
@@ -185,7 +186,7 @@ func main() {
 		challenge := msg[8 : 8+16]
 
 		if *account != "" {
-			names, err := requestCharList(tcpConn, *account, *pass, challenge, encodeFullVersion(sendVersion), imagesVersion, soundsVersion)
+			names, err := requestCharList(tcpConn, *account, *accountPass, challenge, encodeFullVersion(sendVersion), imagesVersion, soundsVersion)
 			if err != nil {
 				log.Fatalf("list characters: %v", err)
 			}
