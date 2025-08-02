@@ -30,6 +30,19 @@ type frameMobile struct {
 
 const poseDead = 32
 
+// sanity limits for parsed counts to avoid excessive allocations or
+// obviously corrupt packets.
+const (
+	maxDescriptors = 64
+	maxPictures    = 512
+	maxMobiles     = 128
+	maxBubbles     = 64
+)
+
+// pictureShiftFails counts picture shift failures for debugging.
+var pictureShiftFails int
+
+
 // bitReader helps decode the packed picture fields.
 type bitReader struct {
 	data   []byte
@@ -147,11 +160,10 @@ func pictureShift(prev, cur []framePicture) (int, int, bool) {
 
 // handleDrawState decodes the packed draw state message.
 //
-// The C client always applies the simple XOR scheme to draw state packets from
-// the server, while movie files store their frames unencrypted. To emulate that
-// behaviour we try decoding the packet after applying SimpleEncrypt(). If that
-// fails (which happens when reading unencrypted movie data) we undo the
-// encryption and decode again.
+// Frames coming from the live server are XOR-obfuscated using SimpleEncrypt,
+// while movie files store the data unencrypted. We therefore try to parse the
+// raw payload first and only fall back to applying SimpleEncrypt when the
+// unencrypted attempt fails validation.
 func handleDrawState(m []byte) {
 	if len(m) < 11 { // 2 byte tag + 9 bytes minimum
 		return
@@ -159,18 +171,19 @@ func handleDrawState(m []byte) {
 
 	data := append([]byte(nil), m[2:]...)
 
-	// First attempt to parse assuming the payload is encrypted like the C
-	// client expects from the live server.
-	simpleEncrypt(data)
+	// First try parsing the payload as-is.
 	if parseDrawState(data) {
 		return
 	}
 
-	// If parsing failed, assume the data was unencrypted (e.g. from a
-	// movie file). Undo the encryption and try once more.
+	// If parsing failed, assume the packet was XOR-obfuscated and retry.
 	simpleEncrypt(data)
 	if !parseDrawState(data) {
-		dlog("failed to parse draw state: % x", data[:16])
+		n := len(data)
+		if n > 16 {
+			n = 16
+		}
+		dlog("failed to parse draw state: % x", data[:n])
 	}
 }
 
@@ -191,6 +204,9 @@ func parseDrawState(data []byte) bool {
 	}
 	descCount := int(data[p])
 	p++
+	if descCount > maxDescriptors {
+		return false
+	}
 	descs := make([]frameDescriptor, 0, descCount)
 	for i := 0; i < descCount && p < len(data); i++ {
 		if p+4 > len(data) {
@@ -250,6 +266,9 @@ func parseDrawState(data []byte) bool {
 		pictCount = int(data[p+1])
 		p += 2
 	}
+	if pictAgain+pictCount > maxPictures {
+		return false
+	}
 
 	pics := make([]framePicture, 0, pictAgain+pictCount)
 	br := bitReader{data: data[p:]}
@@ -269,6 +288,9 @@ func parseDrawState(data []byte) bool {
 	}
 	mobileCount := int(data[p])
 	p++
+	if mobileCount > maxMobiles {
+		return false
+	}
 	mobiles := make([]frameMobile, 0, mobileCount)
 	for i := 0; i < mobileCount && p+7 <= len(data); i++ {
 		m := frameMobile{}
@@ -401,11 +423,11 @@ func parseDrawState(data []byte) bool {
 
 	for {
 		if len(stateData) == 0 {
-			return true
+			return false
 		}
 		idx := bytes.IndexByte(stateData, 0)
 		if idx < 0 {
-			return true
+			return false
 		}
 		if idx == 0 {
 			stateData = stateData[1:]
@@ -415,54 +437,61 @@ func parseDrawState(data []byte) bool {
 		stateData = stateData[idx+1:]
 	}
 
-	if len(stateData) > 0 {
-		bubbleCount := int(stateData[0])
-		stateData = stateData[1:]
-		for i := 0; i < bubbleCount; i++ {
-			if len(stateData) < 2 {
-				return false
-			}
-			idx := stateData[0]
-			typ := int(stateData[1])
-			p := 2
-			if typ&kBubbleNotCommon != 0 {
-				if len(stateData) < p+1 {
-					return false
-				}
-				p++
-			}
-			if typ&kBubbleFar != 0 {
-				if len(stateData) < p+4 {
-					return false
-				}
-				p += 4
-			}
-			if len(stateData) < p {
-				return false
-			}
-			end := bytes.IndexByte(stateData[p:], 0)
-			if end < 0 {
-				return false
-			}
-			bubbleData := stateData[:p+end+1]
-			if txt := decodeBubble(bubbleData); txt != "" {
-				name := ""
-				stateMu.Lock()
-				if d, ok := state.descriptors[idx]; ok {
-					name = d.Name
-				}
-				stateMu.Unlock()
-				msg := txt
-				if name != "" {
-					msg = name + " " + txt
-				}
-				fmt.Println(msg)
-				if idx != playerIndex {
-					addMessage(msg)
-				}
-			}
-			stateData = stateData[p+end+1:]
+	if len(stateData) == 0 {
+		return false
+	}
+	bubbleCount := int(stateData[0])
+	stateData = stateData[1:]
+	if bubbleCount > maxBubbles {
+		return false
+	}
+	for i := 0; i < bubbleCount; i++ {
+		if len(stateData) < 2 {
+			return false
 		}
+		idx := stateData[0]
+		typ := int(stateData[1])
+		p := 2
+		if typ&kBubbleNotCommon != 0 {
+			if len(stateData) < p+1 {
+				return false
+			}
+			p++
+		}
+		if typ&kBubbleFar != 0 {
+			if len(stateData) < p+4 {
+				return false
+			}
+			p += 4
+		}
+		if len(stateData) < p {
+			return false
+		}
+		end := bytes.IndexByte(stateData[p:], 0)
+		if end < 0 {
+			return false
+		}
+		bubbleData := stateData[:p+end+1]
+		if txt := decodeBubble(bubbleData); txt != "" {
+			name := ""
+			stateMu.Lock()
+			if d, ok := state.descriptors[idx]; ok {
+				name = d.Name
+			}
+			stateMu.Unlock()
+			msg := txt
+			if name != "" {
+				msg = name + " " + txt
+			}
+			fmt.Println(msg)
+			if idx != playerIndex {
+				addMessage(msg)
+			}
+		}
+		stateData = stateData[p+end+1:]
+	}
+	if len(stateData) != 0 {
+		return false
 	}
 	return true
 }
