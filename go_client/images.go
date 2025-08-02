@@ -18,9 +18,10 @@ var (
 	// imageCache holds a cropped version of the first frame of an image. It
 	// is used for static pictures on the playfield.
 	imageCache = make(map[uint16]*ebiten.Image)
-	// sheetCache holds the full sprite sheet for a picture ID. These are
-	// used when extracting individual mobile frames.
-	sheetCache = make(map[uint16]*ebiten.Image)
+	// sheetCache holds the full sprite sheet for a picture ID and optional
+	// custom color palette. The key combines the picture ID with the custom
+	// color bytes so tinted versions are cached separately.
+	sheetCache = make(map[string]*ebiten.Image)
 	// mobileCache caches individual mobile frames keyed by picture ID,
 	// state, and color overrides.
 	mobileCache = make(map[string]*ebiten.Image)
@@ -44,18 +45,19 @@ func addBorder(img *ebiten.Image) *ebiten.Image {
 // loadImage retrieves the image for the specified picture ID. Images are
 // cached after the first load to avoid reopening files each frame.
 // loadSheet retrieves the full sprite sheet for the specified picture ID.
-func loadSheet(id uint16) *ebiten.Image {
+func loadSheet(id uint16, colors []byte) *ebiten.Image {
+	key := fmt.Sprintf("%d-%x", id, colors)
 	imageMu.Lock()
-	if img, ok := sheetCache[id]; ok {
+	if img, ok := sheetCache[key]; ok {
 		imageMu.Unlock()
 		return img
 	}
 	imageMu.Unlock()
 
 	if clImages != nil {
-		if img := clImages.Get(uint32(id)); img != nil {
+		if img := clImages.Get(uint32(id), colors); img != nil {
 			imageMu.Lock()
-			sheetCache[id] = img
+			sheetCache[key] = img
 			imageMu.Unlock()
 			return img
 		}
@@ -65,7 +67,7 @@ func loadSheet(id uint16) *ebiten.Image {
 	}
 
 	imageMu.Lock()
-	sheetCache[id] = nil
+	sheetCache[key] = nil
 	imageMu.Unlock()
 	return nil
 }
@@ -80,7 +82,7 @@ func loadImage(id uint16) *ebiten.Image {
 	}
 	imageMu.Unlock()
 
-	if sheet := loadSheet(id); sheet != nil {
+	if sheet := loadSheet(id, nil); sheet != nil {
 		frames := clImages.NumFrames(uint32(id))
 		if frames > 1 {
 			h := sheet.Bounds().Dy() / frames
@@ -111,7 +113,7 @@ func loadMobileFrame(id uint16, state uint8, colors []byte) *ebiten.Image {
 	}
 	imageMu.Unlock()
 
-	sheet := loadSheet(id)
+	sheet := loadSheet(id, colors)
 	if sheet == nil {
 		imageMu.Lock()
 		mobileCache[key] = nil
