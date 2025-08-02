@@ -16,6 +16,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 const gameAreaSizeX, gameAreaSizeY = 547, 540
@@ -256,7 +257,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				screen.DrawImage(img, op)
 			}
 		} else {
-			ebitenutil.DrawRect(screen, float64(x)-3*float64(scale), float64(y)-3*float64(scale), 6*float64(scale), 6*float64(scale), color.RGBA{0xff, 0, 0, 0xff})
+			vector.DrawFilledRect(screen, float32(x-3*scale), float32(y-3*scale), float32(6*scale), float32(6*scale), color.RGBA{0xff, 0, 0, 0xff}, false)
 		}
 		texts = append(texts, textItem{x + 6*scale, y - 8*scale, fmt.Sprintf("%d", m.Index)})
 	}
@@ -282,7 +283,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			op.GeoM.Translate(float64(x-w*scale/2), float64(y-h*scale/2))
 			screen.DrawImage(img, op)
 		} else {
-			ebitenutil.DrawRect(screen, float64(x)-2*float64(scale), float64(y)-2*float64(scale), 4*float64(scale), 4*float64(scale), color.RGBA{0, 0, 0xff, 0xff})
+			vector.DrawFilledRect(screen, float32(x-2*scale), float32(y-2*scale), float32(4*scale), float32(4*scale), color.RGBA{0, 0, 0xff, 0xff}, false)
 		}
 		texts = append(texts, textItem{x + 4*scale, y - 8*scale, fmt.Sprintf("%d", p.PictID)})
 	}
@@ -372,12 +373,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	drawBar := func(x int, cur, max int, clr color.RGBA) {
 		frameClr := color.RGBA{0xff, 0xff, 0xff, barAlpha}
 		bgClr := color.RGBA{0x40, 0x40, 0x40, barAlpha}
-		ebitenutil.DrawRect(screen, float64(x-scale), float64(barY-scale), float64(barWidth+2*scale), float64(barHeight+2*scale), frameClr)
-		ebitenutil.DrawRect(screen, float64(x), float64(barY), float64(barWidth), float64(barHeight), bgClr)
+		vector.DrawFilledRect(screen, float32(x-scale), float32(barY-scale), float32(barWidth+2*scale), float32(barHeight+2*scale), frameClr, false)
+		vector.DrawFilledRect(screen, float32(x), float32(barY), float32(barWidth), float32(barHeight), bgClr, false)
 		if max > 0 && cur > 0 {
 			w := barWidth * cur / max
 			fillClr := color.RGBA{clr.R, clr.G, clr.B, barAlpha}
-			ebitenutil.DrawRect(screen, float64(x), float64(barY), float64(w), float64(barHeight), fillClr)
+			vector.DrawFilledRect(screen, float32(x), float32(barY), float32(w), float32(barHeight), fillClr, false)
 		}
 	}
 	drawBar(x, hp, hpMax, color.RGBA{0xff, 0, 0, 0xff})
