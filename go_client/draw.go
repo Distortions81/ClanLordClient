@@ -330,24 +330,36 @@ func parseDrawState(data []byte) bool {
 	newPics := make([]framePicture, again+pictCount)
 	copy(newPics, prevPics[:again])
 	copy(newPics[again:], pics)
+	shiftOK := true
 	if interp {
+		var ok bool
 		dx, dy, ok := pictureShift(prevPics, newPics)
 		dlog("interp pictures again=%d prev=%d cur=%d shift=(%d,%d) ok=%t", again, len(prevPics), len(newPics), dx, dy, ok)
 		if !ok {
 			dlog("prev pics: %s", picturesSummary(prevPics))
 			dlog("new  pics: %s", picturesSummary(newPics))
-		}
-		if ok {
-			state.picShiftX = dx
-			state.picShiftY = dy
-		} else {
 			state.picShiftX = 0
 			state.picShiftY = 0
+		} else {
+			state.picShiftX = dx
+			state.picShiftY = dy
 		}
+		shiftOK = ok
 	}
-	state.pictures = newPics
+	newArea := pictAgain == 0 || !shiftOK
+	if newArea {
+		state.picShiftX = 0
+		state.picShiftY = 0
+		state.pictures = append([]framePicture(nil), pics...)
+		state.prevMobiles = nil
+		state.prevDescs = nil
+		state.prevTime = time.Time{}
+		state.curTime = time.Time{}
+	} else {
+		state.pictures = newPics
+	}
 
-	needAnimUpdate := interp || (onion && changed)
+	needAnimUpdate := !newArea && (interp || (onion && changed))
 	if needAnimUpdate {
 		// save previous mobile positions for interpolation and fading
 		if state.prevMobiles == nil {
