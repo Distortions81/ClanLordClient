@@ -218,7 +218,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		y := (int(math.Round(v)) + fieldCenterY) * scale
 		var img *ebiten.Image
 		if d, ok := descMap[m.Index]; ok {
-			img = loadMobileFrame(d.PictID, m.State)
+			colors := d.Colors
+			if p := getPlayer(d.Name); p != nil && len(p.Colors) > 0 {
+				colors = p.Colors
+			}
+			img = loadMobileFrame(d.PictID, m.State, colors)
 		}
 		var prevImg *ebiten.Image
 		if onion {
@@ -227,7 +231,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				if d, ok := prevDescs[m.Index]; ok {
 					pd = d
 				}
-				prevImg = loadMobileFrame(pd.PictID, pm.State)
+				prevColors := pd.Colors
+				if p := getPlayer(pd.Name); p != nil && len(p.Colors) > 0 {
+					prevColors = p.Colors
+				}
+				prevImg = loadMobileFrame(pd.PictID, pm.State, prevColors)
 			}
 		}
 		if img != nil {

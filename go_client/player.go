@@ -27,5 +27,7 @@ func getPlayer(name string) *Player {
 func updatePlayerAppearance(name string, pictID uint16, colors []byte) {
 	p := getPlayer(name)
 	p.PictID = pictID
-	p.Colors = append(p.Colors[:0], colors...)
+	if len(colors) > 0 {
+		p.Colors = append(p.Colors[:0], colors...)
+	}
 }
