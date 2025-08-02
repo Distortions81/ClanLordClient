@@ -30,6 +30,9 @@ type frameMobile struct {
 
 const poseDead = 32
 
+// pictureShiftFails counts picture shift failures for debugging.
+var pictureShiftFails int
+
 // bitReader helps decode the packed picture fields.
 type bitReader struct {
 	data   []byte
@@ -94,8 +97,8 @@ func pictureShift(prev, cur []framePicture) (int, int, bool) {
 		return 0, 0, false
 	}
 
-	counts := make(map[[2]int]int)
-	total := 0
+	counts := make(map[[2]int]float64)
+	var total float64
 	maxInt := int(^uint(0) >> 1)
 	for _, p := range prev {
 		if !onScreen(p) {
@@ -119,8 +122,9 @@ func pictureShift(prev, cur []framePicture) (int, int, bool) {
 			}
 		}
 		if matched {
-			counts[[2]int{bestDx, bestDy}]++
-			total++
+			weight := 1.0 / float64(bestDist+1)
+			counts[[2]int{bestDx, bestDy}] += weight
+			total += weight
 		}
 	}
 	if total == 0 {
@@ -129,16 +133,16 @@ func pictureShift(prev, cur []framePicture) (int, int, bool) {
 	}
 
 	best := [2]int{}
-	bestCount := 0
+	var bestCount float64
 	for k, c := range counts {
 		if c > bestCount {
 			best = k
 			bestCount = c
 		}
 	}
-	dlog("pictureShift: counts=%v best=%v count=%d total=%d", counts, best, bestCount, total)
-	if bestCount*2 <= total {
-		dlog("pictureShift: no majority best=%d total=%d", bestCount, total)
+	dlog("pictureShift: counts=%v best=%v count=%.2f total=%.2f", counts, best, bestCount, total)
+	if bestCount < total/3 {
+		dlog("pictureShift: no significant shift best=%.2f total=%.2f", bestCount, total)
 		return 0, 0, false
 	}
 	return best[0], best[1], true
@@ -331,22 +335,16 @@ func parseDrawState(data []byte) bool {
 	copy(newPics, prevPics[:again])
 	copy(newPics[again:], pics)
 	shiftOK := true
+	dx, dy := 0, 0
 	if interp {
-		var ok bool
-		dx, dy, ok := pictureShift(prevPics, newPics)
-		dlog("interp pictures again=%d prev=%d cur=%d shift=(%d,%d) ok=%t", again, len(prevPics), len(newPics), dx, dy, ok)
-		if !ok {
+		dx, dy, shiftOK = pictureShift(prevPics, newPics)
+		dlog("interp pictures again=%d prev=%d cur=%d shift=(%d,%d) ok=%t", again, len(prevPics), len(newPics), dx, dy, shiftOK)
+		if !shiftOK {
 			dlog("prev pics: %s", picturesSummary(prevPics))
 			dlog("new  pics: %s", picturesSummary(newPics))
-			state.picShiftX = 0
-			state.picShiftY = 0
-		} else {
-			state.picShiftX = dx
-			state.picShiftY = dy
 		}
-		shiftOK = ok
 	}
-	newArea := pictAgain == 0 || !shiftOK
+	newArea := pictAgain == 0
 	if newArea {
 		state.picShiftX = 0
 		state.picShiftY = 0
@@ -357,6 +355,37 @@ func parseDrawState(data []byte) bool {
 		state.curTime = time.Time{}
 	} else {
 		state.pictures = newPics
+		if interp {
+			if shiftOK {
+				state.picShiftX = dx
+				state.picShiftY = dy
+			} else {
+				pictureShiftFails++
+				dlog("picture shift failed (%d)", pictureShiftFails)
+				prevPlayer, okPrev := state.mobiles[playerIndex]
+				curPlayer := frameMobile{}
+				okCur := false
+				for _, m := range mobiles {
+					if m.Index == playerIndex {
+						curPlayer = m
+						okCur = true
+						break
+					}
+				}
+				if okPrev && okCur {
+					state.picShiftX = int(curPlayer.H) - int(prevPlayer.H)
+					state.picShiftY = int(curPlayer.V) - int(prevPlayer.V)
+					dlog("player shift fallback dx=%d dy=%d", state.picShiftX, state.picShiftY)
+				} else {
+					state.picShiftX = 0
+					state.picShiftY = 0
+					dlog("player shift fallback unavailable prev=%t cur=%t", okPrev, okCur)
+				}
+			}
+		} else {
+			state.picShiftX = 0
+			state.picShiftY = 0
+		}
 	}
 
 	needAnimUpdate := !newArea && (interp || (onion && changed))
@@ -398,11 +427,20 @@ func parseDrawState(data []byte) bool {
 	dlog("draw state cmd=%d ack=%d resend=%d desc=%d pict=%d again=%d mobile=%d state=%d",
 		ackCmd, ackFrame, resendFrame, len(descs), len(pics), pictAgain, len(mobiles), len(stateData))
 
-	if idx := bytes.IndexByte(stateData, 0); idx >= 0 {
+	for {
+		if len(stateData) == 0 {
+			return true
+		}
+		idx := bytes.IndexByte(stateData, 0)
+		if idx < 0 {
+			return true
+		}
+		if idx == 0 {
+			stateData = stateData[1:]
+			break
+		}
 		handleInfoText(stateData[:idx])
 		stateData = stateData[idx+1:]
-	} else {
-		return true
 	}
 
 	if len(stateData) > 0 {

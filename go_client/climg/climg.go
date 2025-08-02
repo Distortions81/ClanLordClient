@@ -180,6 +180,32 @@ func Load(path string) (*CLImages, error) {
 	return imgs, nil
 }
 
+// alphaTransparentForFlags returns the base alpha value and whether
+// color index 0 should be treated as fully transparent for the given
+// sprite flags. The mapping mirrors the original client logic in
+// GameWin_cl.cp where specific flag combinations select distinct
+// alpha maps.
+func alphaTransparentForFlags(flags uint32) (uint8, bool) {
+        switch flags & (pictDefFlagTransparent | pictDefBlendMask) {
+        case pictDefFlagTransparent:
+                return 0xFF, true // kPictDefFlagTransparent
+        case 1:
+                return 0xBF, false // kPictDef25Blend
+        case 2:
+                return 0x7F, false // kPictDef50Blend
+        case 3:
+                return 0x3F, false // kPictDef75Blend
+        case pictDefFlagTransparent | 1:
+                return 0xBF, true // kPictDefFlagTransparent + kPictDef25Blend
+        case pictDefFlagTransparent | 2:
+                return 0x7F, true // kPictDefFlagTransparent + kPictDef50Blend
+        case pictDefFlagTransparent | 3:
+                return 0x3F, true // kPictDefFlagTransparent + kPictDef75Blend
+        default:
+                return 0xFF, false // kPictDefNoBlend or unknown
+        }
+}
+
 func (c *CLImages) Get(id uint32) *ebiten.Image {
 	c.mu.Lock()
 	if img, ok := c.cache[id]; ok {
@@ -293,19 +319,12 @@ func (c *CLImages) Get(id uint32) *ebiten.Image {
 			height--
 		}
 	}
-	pixelCount = len(data)
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
+       pixelCount = len(data)
+       img := image.NewRGBA(image.Rect(0, 0, width, height))
 
-	alpha := uint8(255)
-	switch ref.flags & pictDefBlendMask {
-	case 1:
-		alpha = 0xBF
-	case 2:
-		alpha = 0x7F
-	case 3:
-		alpha = 0x3F
-	}
-	transparent := (ref.flags & pictDefFlagTransparent) != 0
+       // Determine alpha level and transparency handling based on
+       // sprite definition flags.
+       alpha, transparent := alphaTransparentForFlags(ref.flags)
 
 	for i := 0; i < pixelCount; i++ {
 		idx := col[data[i]]
