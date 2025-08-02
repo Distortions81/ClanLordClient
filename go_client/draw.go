@@ -210,7 +210,16 @@ func parseDrawState(data []byte) bool {
 		}
 		d.Colors = append([]byte(nil), data[p:p+cnt]...)
 		p += cnt
-		updatePlayerAppearance(d.Name, d.PictID, d.Colors)
+		if d.Name == "" {
+			stateMu.Lock()
+			if prev, ok := state.descriptors[d.Index]; ok {
+				d.Name = prev.Name
+			}
+			stateMu.Unlock()
+		}
+		if d.Name != "" {
+			updatePlayerAppearance(d.Name, d.PictID, d.Colors)
+		}
 		descs = append(descs, d)
 	}
 

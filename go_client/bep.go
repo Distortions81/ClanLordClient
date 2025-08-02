@@ -35,6 +35,9 @@ func parseBackendInfo(data []byte) {
 	name := strings.TrimSpace(decodeMacRoman(rest[:end]))
 	rest = rest[end+3:]
 	fields := bytes.Split(rest, []byte{'\t'})
+	if len(fields) > 0 && len(fields[0]) == 0 {
+		fields = fields[1:]
+	}
 	if len(fields) < 3 {
 		return
 	}
