@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"flag"
@@ -60,6 +61,8 @@ func main() {
 		if err != nil {
 			log.Fatalf("parse movie: %v", err)
 		}
+
+		playerName = extractMoviePlayerName(frames)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
@@ -256,4 +259,61 @@ func main() {
 		}
 		break
 	}
+}
+
+func extractMoviePlayerName(frames [][]byte) string {
+	stateMu.Lock()
+	if len(state.descriptors) > 0 {
+		var (
+			best uint8 = 0xff
+			name string
+		)
+		for idx, d := range state.descriptors {
+			if name == "" || idx < best {
+				best = idx
+				name = d.Name
+			}
+		}
+		stateMu.Unlock()
+		return name
+	}
+	stateMu.Unlock()
+
+	for _, m := range frames {
+		if len(m) >= 2 && binary.BigEndian.Uint16(m[:2]) == 2 {
+			data := append([]byte(nil), m[2:]...)
+			simpleEncrypt(data)
+			if n := firstDescriptorName(data); n != "" {
+				return n
+			}
+			simpleEncrypt(data)
+			if n := firstDescriptorName(data); n != "" {
+				return n
+			}
+		}
+	}
+	return ""
+}
+
+func firstDescriptorName(data []byte) string {
+	if len(data) < 10 {
+		return ""
+	}
+	p := 9
+	if len(data) <= p {
+		return ""
+	}
+	descCount := int(data[p])
+	p++
+	if descCount == 0 || p >= len(data) {
+		return ""
+	}
+	if p+4 > len(data) {
+		return ""
+	}
+	p += 4
+	if idx := bytes.IndexByte(data[p:], 0); idx >= 0 {
+		return string(data[p : p+idx])
+	}
+	return ""
 }
