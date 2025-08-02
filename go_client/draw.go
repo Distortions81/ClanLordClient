@@ -289,29 +289,14 @@ func parseDrawState(data []byte) bool {
 	state.spMax = spMax
 	state.balance = bal
 	state.balanceMax = balMax
-	changed := false
-	if onion {
-		if len(descs) > 0 {
-			changed = true
+	changed := len(descs) > 0 || len(mobiles) > 0
+	if onion && changed {
+		if state.prevDescs == nil {
+			state.prevDescs = make(map[uint8]frameDescriptor)
 		}
-		if len(mobiles) != len(state.mobiles) {
-			changed = true
-		} else {
-			for _, m := range mobiles {
-				if pm, ok := state.mobiles[m.Index]; !ok || pm.State != m.State {
-					changed = true
-					break
-				}
-			}
-		}
-		if changed {
-			if state.prevDescs == nil {
-				state.prevDescs = make(map[uint8]frameDescriptor)
-			}
-			state.prevDescs = make(map[uint8]frameDescriptor, len(state.descriptors))
-			for idx, d := range state.descriptors {
-				state.prevDescs[idx] = d
-			}
+		state.prevDescs = make(map[uint8]frameDescriptor, len(state.descriptors))
+		for idx, d := range state.descriptors {
+			state.prevDescs[idx] = d
 		}
 	}
 	if state.descriptors == nil {
@@ -372,11 +357,6 @@ func parseDrawState(data []byte) bool {
 
 	if state.mobiles == nil {
 		state.mobiles = make(map[uint8]frameMobile)
-	} else {
-		// clear map while keeping allocation
-		for k := range state.mobiles {
-			delete(state.mobiles, k)
-		}
 	}
 	for _, m := range mobiles {
 		state.mobiles[m.Index] = m
