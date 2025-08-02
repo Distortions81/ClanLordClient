@@ -43,7 +43,7 @@ Both scripts expect to be executed from the repository root.
 
 The module path is `go_client` and the main package is located in this directory.
 
-The `mac_client` directory contains a reference implementation written in C.
+The `mac_client` directory contains a reference implementation written in C and should *never* be modified. It is only for reference!
 
 ## Session notes
 The following dependencies were installed when building and testing the Go client
