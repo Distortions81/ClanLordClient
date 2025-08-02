@@ -159,12 +159,12 @@ func main() {
 		if _, err := io.ReadFull(tcpConn, confirm[:]); err != nil {
 			log.Fatalf("confirm handshake: %v", err)
 		}
-		if err := sendIdentifiers(tcpConn, encodeFullVersion(sendVersion), imagesVersion, soundsVersion); err != nil {
+		if err := sendClientIdentifiers(tcpConn, encodeFullVersion(sendVersion), imagesVersion, soundsVersion); err != nil {
 			log.Fatalf("send identifiers: %v", err)
 		}
 		fmt.Println("connected to", *host)
 
-		msg, err := readMessage(tcpConn)
+		msg, err := readTCPMessage(tcpConn)
 		if err != nil {
 			log.Fatalf("read challenge: %v", err)
 		}
@@ -209,11 +209,11 @@ func main() {
 		copy(buf[17+len(*name):], answer)
 		simpleEncrypt(buf[16:])
 
-		if err := sendMessage(tcpConn, buf); err != nil {
+		if err := sendTCPMessage(tcpConn, buf); err != nil {
 			log.Fatalf("send login: %v", err)
 		}
 
-		resp, err := readMessage(tcpConn)
+		resp, err := readTCPMessage(tcpConn)
 		if err != nil {
 			log.Fatalf("read login response: %v", err)
 		}
