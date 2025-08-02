@@ -27,14 +27,18 @@ func sendClientIdentifiers(connection net.Conn, clientVersion, imagesVersion, so
 	}
 	boot := "/"
 
-	data := make([]byte, 0, 8+6+len(uname)+1+len(hname)+1+len(boot)+1+1)
+	unameBytes := encodeMacRoman(uname)
+	hnameBytes := encodeMacRoman(hname)
+	bootBytes := encodeMacRoman(boot)
+
+	data := make([]byte, 0, 8+6+len(unameBytes)+1+len(hnameBytes)+1+len(bootBytes)+1+1)
 	data = append(data, make([]byte, 8)...) // magic file info placeholder
 	data = append(data, make([]byte, 6)...) // ethernet address placeholder
-	data = append(data, []byte(uname)...)
+	data = append(data, unameBytes...)
 	data = append(data, 0)
-	data = append(data, []byte(hname)...)
+	data = append(data, hnameBytes...)
 	data = append(data, 0)
-	data = append(data, []byte(boot)...)
+	data = append(data, bootBytes...)
 	data = append(data, 0)
 	data = append(data, byte(0)) // language
 
@@ -160,15 +164,16 @@ func sendCharListRequest(connection net.Conn, account, password string, challeng
 		return err
 	}
 	const kMsgCharList = 14
-	packet := make([]byte, 16+len(account)+1+len(answer))
+	accountBytes := encodeMacRoman(account)
+	packet := make([]byte, 16+len(accountBytes)+1+len(answer))
 	binary.BigEndian.PutUint16(packet[0:2], kMsgCharList)
 	binary.BigEndian.PutUint16(packet[2:4], 0)
 	binary.BigEndian.PutUint32(packet[4:8], clientVersion)
 	binary.BigEndian.PutUint32(packet[8:12], imagesVersion)
 	binary.BigEndian.PutUint32(packet[12:16], soundsVersion)
-	copy(packet[16:], []byte(account))
-	packet[16+len(account)] = 0
-	copy(packet[17+len(account):], answer)
+	copy(packet[16:], accountBytes)
+	packet[16+len(accountBytes)] = 0
+	copy(packet[17+len(accountBytes):], answer)
 	simpleEncrypt(packet[16:])
 	dlog("request character list for %s", account)
 	return sendTCPMessage(connection, packet)
@@ -212,7 +217,8 @@ func parseCharListResponse(resp []byte) ([]string, error) {
 // sendCommandText sends a text command to the server over TCP.
 func sendCommandText(connection net.Conn, txt string) error {
 	const kMsgCommandText = 6
-	data := append([]byte(txt), 0)
+	txtBytes := encodeMacRoman(txt)
+	data := append(txtBytes, 0)
 	packet := make([]byte, 16+len(data))
 	binary.BigEndian.PutUint16(packet[0:2], kMsgCommandText)
 	binary.BigEndian.PutUint16(packet[2:4], 0)
