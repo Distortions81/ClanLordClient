@@ -262,31 +262,18 @@ func main() {
 }
 
 func extractMoviePlayerName(frames [][]byte) string {
-	stateMu.Lock()
-	for idx, m := range state.mobiles {
-		if m.H == 0 && m.V == 0 {
-			if d, ok := state.descriptors[idx]; ok && d.Type == kDescPlayer {
-				playerIndex = idx
-				stateMu.Unlock()
-				return d.Name
+	for _, m := range frames {
+		if len(m) >= 2 && binary.BigEndian.Uint16(m[:2]) == 2 {
+			data := append([]byte(nil), m[2:]...)
+			if n := playerFromDrawState(data); n != "" {
+				return n
+			}
+			simpleEncrypt(data)
+			if n := playerFromDrawState(data); n != "" {
+				return n
 			}
 		}
 	}
-	if len(state.descriptors) > 0 {
-		var (
-			best uint8 = 0xff
-			name string
-		)
-		for idx, d := range state.descriptors {
-			if name == "" || idx < best {
-				best = idx
-				name = d.Name
-			}
-		}
-		stateMu.Unlock()
-		return name
-	}
-	stateMu.Unlock()
 
 	for _, m := range frames {
 		if len(m) >= 2 && binary.BigEndian.Uint16(m[:2]) == 2 {
@@ -297,6 +284,94 @@ func extractMoviePlayerName(frames [][]byte) string {
 			simpleEncrypt(data)
 			if n := firstDescriptorName(data); n != "" {
 				return n
+			}
+		}
+	}
+	return ""
+}
+
+func playerFromDrawState(data []byte) string {
+	if len(data) < 9 {
+		return ""
+	}
+	p := 9
+	if len(data) <= p {
+		return ""
+	}
+	descCount := int(data[p])
+	p++
+	descs := make(map[uint8]struct {
+		Type uint8
+		Name string
+	}, descCount)
+	for i := 0; i < descCount && p < len(data); i++ {
+		if p+4 > len(data) {
+			return ""
+		}
+		idx := data[p]
+		typ := data[p+1]
+		p += 4
+		if off := bytes.IndexByte(data[p:], 0); off >= 0 {
+			name := string(data[p : p+off])
+			p += off + 1
+			if p >= len(data) {
+				return ""
+			}
+			cnt := int(data[p])
+			p++
+			if p+cnt > len(data) {
+				return ""
+			}
+			p += cnt
+			descs[idx] = struct {
+				Type uint8
+				Name string
+			}{typ, name}
+		} else {
+			return ""
+		}
+	}
+	if len(data) < p+7 {
+		return ""
+	}
+	p += 7
+	if len(data) <= p {
+		return ""
+	}
+	pictCount := int(data[p])
+	p++
+	if pictCount == 255 {
+		if len(data) < p+2 {
+			return ""
+		}
+		// skip pictAgain
+		pictCount = int(data[p+1])
+		p += 2
+	}
+	br := bitReader{data: data[p:]}
+	for i := 0; i < pictCount; i++ {
+		br.readBits(14)
+		br.readBits(11)
+		br.readBits(11)
+	}
+	p += br.bitPos / 8
+	if br.bitPos%8 != 0 {
+		p++
+	}
+	if len(data) <= p {
+		return ""
+	}
+	mobileCount := int(data[p])
+	p++
+	for i := 0; i < mobileCount && p+7 <= len(data); i++ {
+		idx := data[p]
+		h := int16(binary.BigEndian.Uint16(data[p+2:]))
+		v := int16(binary.BigEndian.Uint16(data[p+4:]))
+		p += 7
+		if h == 0 && v == 0 {
+			if d, ok := descs[idx]; ok && d.Type == kDescPlayer {
+				playerIndex = idx
+				return d.Name
 			}
 		}
 	}
