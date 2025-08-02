@@ -216,7 +216,14 @@ func parseDrawState(data []byte) bool {
 	if len(data) < p+7 {
 		return false
 	}
-	p += 7 // skip status fields
+	hp := int(data[p])
+	hpMax := int(data[p+1])
+	sp := int(data[p+2])
+	spMax := int(data[p+3])
+	bal := int(data[p+4])
+	balMax := int(data[p+5])
+	// lighting := data[p+6]
+	p += 7
 
 	if len(data) <= p {
 		return false
@@ -266,6 +273,12 @@ func parseDrawState(data []byte) bool {
 	stateData := data[p:]
 
 	stateMu.Lock()
+	state.hp = hp
+	state.hpMax = hpMax
+	state.sp = sp
+	state.spMax = spMax
+	state.balance = bal
+	state.balanceMax = balMax
 	changed := false
 	if onion {
 		if len(descs) > 0 {
