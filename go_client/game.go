@@ -40,6 +40,11 @@ var onion bool
 var linear bool
 var drawFilter = ebiten.FilterNearest
 
+type bubble struct {
+	Text   string
+	Expire time.Time
+}
+
 // drawState tracks information needed by the Ebiten renderer.
 type drawState struct {
 	descriptors map[uint8]frameDescriptor
@@ -52,6 +57,8 @@ type drawState struct {
 	prevTime    time.Time
 	curTime     time.Time
 
+	bubbles map[uint8]bubble
+
 	hp, hpMax           int
 	sp, spMax           int
 	balance, balanceMax int
@@ -63,6 +70,7 @@ var (
 		mobiles:     make(map[uint8]frameMobile),
 		prevMobiles: make(map[uint8]frameMobile),
 		prevDescs:   make(map[uint8]frameDescriptor),
+		bubbles:     make(map[uint8]bubble),
 	}
 	stateMu sync.Mutex
 )
@@ -119,6 +127,15 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	mobiles := make([]frameMobile, 0, len(state.mobiles))
 	for _, m := range state.mobiles {
 		mobiles = append(mobiles, m)
+	}
+	bubbles := make(map[uint8]bubble, len(state.bubbles))
+	now := time.Now()
+	for idx, b := range state.bubbles {
+		if now.After(b.Expire) {
+			delete(state.bubbles, idx)
+			continue
+		}
+		bubbles[idx] = b
 	}
 	var prevMobiles map[uint8]frameMobile
 	if interp || onion {
@@ -271,6 +288,19 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				ebitenutil.DrawRect(screen, float64(left+1), float64(top+1), float64(w+2), float64(h+2), bgClr)
 				text.Draw(screen, d.Name, face, left+2, top+1+h, textClr)
 			}
+			if b, ok := bubbles[m.Index]; ok {
+				face := basicfont.Face7x13
+				bounds := text.BoundString(face, b.Text)
+				w := bounds.Dx()
+				h := bounds.Dy()
+				top := y - size*scale/2 - h - 4*scale
+				left := x - w/2 - 2
+				frameClr := color.RGBA{0, 0, 0, 0xff}
+				bgClr := color.RGBA{0xff, 0xff, 0xff, 192}
+				vector.StrokeRect(screen, float32(left), float32(top), float32(w+4), float32(h+4), 1, frameClr, false)
+				ebitenutil.DrawRect(screen, float64(left+1), float64(top+1), float64(w+2), float64(h+2), bgClr)
+				text.Draw(screen, b.Text, face, left+2, top+1+h, color.Black)
+			}
 		} else {
 			vector.DrawFilledRect(screen, float32(x-3*scale), float32(y-3*scale), float32(6*scale), float32(6*scale), color.RGBA{0xff, 0, 0, 0xff}, false)
 		}
@@ -410,11 +440,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	x += barWidth + gap
 	drawBar(x, sp, spMax, color.RGBA{0x00, 0x00, 0xff, 0xff})
 
-        msgs := getMessages()
-        startY := 480*scale - 12*len(msgs)*scale - 6*scale
-        for i, msg := range msgs {
-                ebitenutil.DebugPrintAt(screen, msg.Text, 4*scale, startY+12*i*scale)
-        }
+	msgs := getMessages()
+	startY := 480*scale - 12*len(msgs)*scale - 6*scale
+	for i, msg := range msgs {
+		ebitenutil.DebugPrintAt(screen, msg.Text, 4*scale, startY+12*i*scale)
+	}
 	if inputActive {
 		if inputBg == nil {
 			inputBg = ebiten.NewImage(gameAreaSizeX*scale, 12*scale)
@@ -480,9 +510,9 @@ func udpReadLoop(ctx context.Context, conn net.Conn) {
 			handleDrawState(m)
 			continue
 		}
-                if txt := decodeMessage(m); txt != "" {
-                        fmt.Println(txt)
-                        addMessage(MsgDefault, txt)
+		if txt := decodeMessage(m); txt != "" {
+			fmt.Println(txt)
+			addMessage(MsgDefault, txt)
 		} else {
 			fmt.Printf("udp msg tag %d len %d\n", tag, len(m))
 		}
@@ -514,9 +544,9 @@ loop:
 			handleDrawState(m)
 			continue
 		}
-                if txt := decodeMessage(m); txt != "" {
-                        fmt.Println(txt)
-                        addMessage(MsgDefault, txt)
+		if txt := decodeMessage(m); txt != "" {
+			fmt.Println(txt)
+			addMessage(MsgDefault, txt)
 		} else {
 			fmt.Printf("msg tag %d len %d\n", tag, len(m))
 		}
@@ -534,5 +564,5 @@ func sendChat(txt string) {
 			fmt.Printf("send chat: %v\n", err)
 		}
 	}
-        addMessage(MsgMySpeech, txt)
+	addMessage(MsgMySpeech, txt)
 }

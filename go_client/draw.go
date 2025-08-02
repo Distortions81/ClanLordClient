@@ -423,20 +423,22 @@ func parseDrawState(data []byte) bool {
 				return false
 			}
 			bubbleData := stateData[:p+end+1]
-                                if txt := decodeBubble(bubbleData); txt != "" {
+			if txt := decodeBubble(bubbleData); txt != "" {
+				clean := decodeBubbleText(bubbleData)
 				name := ""
 				stateMu.Lock()
 				if d, ok := state.descriptors[idx]; ok {
 					name = d.Name
 				}
+				state.bubbles[idx] = bubble{Text: clean, Expire: time.Now().Add(5 * time.Second)}
 				stateMu.Unlock()
 				msg := txt
 				if name != "" {
 					msg = name + " " + txt
 				}
 				fmt.Println(msg)
-                                addMessage(MsgDefault, msg)
-                                }
+				addMessage(MsgDefault, msg)
+			}
 			stateData = stateData[p+end+1:]
 		}
 	}
