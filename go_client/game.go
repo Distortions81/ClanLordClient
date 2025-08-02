@@ -370,13 +370,6 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 	*/
 
-	lines := make([]string, 0, len(descs))
-	for _, d := range descs {
-		lines = append(lines, fmt.Sprintf("%d:%s id=%d t=%d", d.Index, d.Name, d.PictID, d.Type))
-	}
-	//ebitenutil.DebugPrintAt(screen, strings.Join(lines, "\n"), 4*scale, 4*scale)
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("desc:%d pict:%d mobile:%d", len(descs), len(pics), len(mobiles)), 490*scale, 460*scale)
-
 	// draw status bars
 	if hudPixel == nil {
 		hudPixel = ebiten.NewImage(1, 1)
