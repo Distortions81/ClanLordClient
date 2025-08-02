@@ -165,6 +165,8 @@ func pictureShift(prev, cur []framePicture) (int, int, bool) {
 // raw payload first and only fall back to applying SimpleEncrypt when the
 // unencrypted attempt fails validation.
 func handleDrawState(m []byte) {
+	frameCounter++
+
 	if len(m) < 11 { // 2 byte tag + 9 bytes minimum
 		return
 	}

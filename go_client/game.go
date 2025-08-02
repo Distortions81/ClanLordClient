@@ -192,7 +192,6 @@ func (g *Game) Update() error {
 		}
 	}
 
-	frameCounter++
 	return nil
 }
 
