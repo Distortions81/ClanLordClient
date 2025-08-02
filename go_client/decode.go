@@ -16,56 +16,92 @@ func decodeMacRoman(b []byte) string {
 	return string(str)
 }
 
-func decodeBEPP(data []byte) string {
-	if len(data) < 3 || data[0] != 0xC2 {
-		return ""
-	}
-	prefix := string(data[1:3])
-	textBytes := data[3:]
-	if i := bytes.IndexByte(textBytes, 0); i >= 0 {
-		textBytes = textBytes[:i]
-	}
-	switch prefix {
-	case "th":
-		text := strings.TrimSpace(decodeMacRoman(textBytes))
-		if text != "" {
-			return "think: " + text
-		}
-	case "in":
-		text := strings.TrimSpace(decodeMacRoman(textBytes))
-		if text != "" {
-			return "info: " + text
-		}
-	case "sh":
-		text := strings.TrimSpace(decodeMacRoman(textBytes))
-		if text != "" {
-			return "share: " + text
-		}
-	case "be":
-		parseBackend(textBytes)
-	}
-	return ""
+func decodeBEPP(data []byte) (string, MsgClass) {
+        if len(data) < 3 || data[0] != 0xC2 {
+                return "", MsgDefault
+        }
+        prefix := string(data[1:3])
+        textBytes := data[3:]
+        if i := bytes.IndexByte(textBytes, 0); i >= 0 {
+                textBytes = textBytes[:i]
+        }
+        if prefix == "be" {
+                parseBackend(textBytes)
+                return "", MsgDefault
+        }
+        cleaned, you := stripBEPPTags(textBytes)
+        text := strings.TrimSpace(decodeMacRoman(cleaned))
+        if text == "" {
+                return "", MsgDefault
+        }
+        class := MsgDefault
+        switch prefix {
+        case "th":
+                class = MsgInfo
+                if you {
+                        class = MsgMySpeech
+                        text = "You think: " + text
+                } else {
+                        text = "think: " + text
+                }
+        case "in":
+                class = MsgInfo
+                text = "info: " + text
+        case "sh":
+                class = MsgShare
+                if you {
+                        class = MsgMySpeech
+                        text = "You share: " + text
+                } else {
+                        text = "share: " + text
+                }
+        case "lg":
+                class = MsgLogon
+        case "lf":
+                class = MsgLogoff
+        case "er":
+                class = MsgError
+        default:
+                class = MsgDefault
+        }
+        return text, class
 }
 
-func stripBEPPTags(b []byte) []byte {
-	out := b[:0]
-	for i := 0; i < len(b); {
-		c := b[i]
-		if c == 0xC2 {
-			if i+2 < len(b) {
-				i += 3
-				continue
-			}
-			break
-		}
-		if c >= 0x80 || c < 0x20 {
-			i++
-			continue
-		}
-		out = append(out, c)
-		i++
-	}
-	return out
+func stripBEPPTags(b []byte) ([]byte, bool) {
+        out := b[:0]
+        you := false
+        for i := 0; i < len(b); {
+                c := b[i]
+                if c == 0xC2 {
+                        if i+2 >= len(b) {
+                                break
+                        }
+                        tag := string(b[i+1 : i+3])
+                        i += 3
+                        if tag == "pn" {
+                                end := bytes.Index(b[i:], []byte{0xC2, 'p', 'n'})
+                                if end < 0 {
+                                        continue
+                                }
+                                name := strings.TrimSpace(decodeMacRoman(b[i : i+end]))
+                                if strings.EqualFold(name, playerName) {
+                                        out = append(out, []byte("You")...)
+                                        you = true
+                                } else {
+                                        out = append(out, []byte(name)...)
+                                }
+                                i += end + 3
+                        }
+                        continue
+                }
+                if c >= 0x80 || c < 0x20 {
+                        i++
+                        continue
+                }
+                out = append(out, c)
+                i++
+        }
+        return out, you
 }
 
 func decodeBubble(data []byte) string {
@@ -89,7 +125,7 @@ func decodeBubble(data []byte) string {
 	if len(data) <= p {
 		return ""
 	}
-	msgData := stripBEPPTags(data[p:])
+        msgData, _ := stripBEPPTags(data[p:])
 	if i := bytes.IndexByte(msgData, 0); i >= 0 {
 		msgData = msgData[:i]
 	}
@@ -138,12 +174,12 @@ func decodeMessage(m []byte) string {
 		return ""
 	}
 	data := append([]byte(nil), m[16:]...)
-	if len(data) > 0 && data[0] == 0xC2 {
-		if s := decodeBEPP(data); s != "" {
-			return s
-		}
-		return ""
-	}
+        if len(data) > 0 && data[0] == 0xC2 {
+                if s, _ := decodeBEPP(data); s != "" {
+                        return s
+                }
+                return ""
+        }
 	if s := decodeBubble(data); s != "" {
 		return s
 	}
@@ -157,13 +193,13 @@ func decodeMessage(m []byte) string {
 		}
 	}
 
-	simpleEncrypt(data)
-	if len(data) > 0 && data[0] == 0xC2 {
-		if s := decodeBEPP(data); s != "" {
-			return s
-		}
-		return ""
-	}
+        simpleEncrypt(data)
+        if len(data) > 0 && data[0] == 0xC2 {
+                if s, _ := decodeBEPP(data); s != "" {
+                        return s
+                }
+                return ""
+        }
 	if s := decodeBubble(data); s != "" {
 		return s
 	}
@@ -184,29 +220,30 @@ func handleInfoText(data []byte) {
 		if len(line) == 0 {
 			continue
 		}
-		if line[0] == 0xC2 {
-			if txt := decodeBEPP(line); txt != "" {
-				fmt.Println(txt)
-				addMessage(txt)
-			}
-			continue
-		}
-		if txt := decodeBubble(line); txt != "" {
-			fmt.Println(txt)
-			addMessage(txt)
-			continue
-		}
-		s := strings.TrimSpace(decodeMacRoman(stripBEPPTags(line)))
-		if s == "" {
-			continue
-		}
-		if parseNightCommand(s) {
-			continue
-		}
-		if strings.HasPrefix(s, "/") {
-			continue
-		}
-		fmt.Println(s)
-		addMessage(s)
-	}
+                if line[0] == 0xC2 {
+                        if txt, class := decodeBEPP(line); txt != "" {
+                                fmt.Println(txt)
+                                addMessage(class, txt)
+                        }
+                        continue
+                }
+                if txt := decodeBubble(line); txt != "" {
+                        fmt.Println(txt)
+                        addMessage(MsgDefault, txt)
+                        continue
+                }
+                sBytes, _ := stripBEPPTags(line)
+                s := strings.TrimSpace(decodeMacRoman(sBytes))
+                if s == "" {
+                        continue
+                }
+                if parseNightCommand(s) {
+                        continue
+                }
+                if strings.HasPrefix(s, "/") {
+                        continue
+                }
+                fmt.Println(s)
+                addMessage(MsgDefault, s)
+        }
 }

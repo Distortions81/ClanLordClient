@@ -423,7 +423,7 @@ func parseDrawState(data []byte) bool {
 				return false
 			}
 			bubbleData := stateData[:p+end+1]
-			if txt := decodeBubble(bubbleData); txt != "" {
+                                if txt := decodeBubble(bubbleData); txt != "" {
 				name := ""
 				stateMu.Lock()
 				if d, ok := state.descriptors[idx]; ok {
@@ -435,10 +435,8 @@ func parseDrawState(data []byte) bool {
 					msg = name + " " + txt
 				}
 				fmt.Println(msg)
-				if idx != playerIndex {
-					addMessage(msg)
-				}
-			}
+                                addMessage(MsgDefault, msg)
+                                }
 			stateData = stateData[p+end+1:]
 		}
 	}
