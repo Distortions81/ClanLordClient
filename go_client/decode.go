@@ -41,6 +41,27 @@ func decodeBEPP(data []byte) string {
 	}
 }
 
+func stripBEPPTags(b []byte) []byte {
+	out := b[:0]
+	for i := 0; i < len(b); {
+		c := b[i]
+		if c == 0xC2 {
+			if i+2 < len(b) {
+				i += 3
+				continue
+			}
+			break
+		}
+		if c >= 0x80 || c < 0x20 {
+			i++
+			continue
+		}
+		out = append(out, c)
+		i++
+	}
+	return out
+}
+
 func decodeBubble(data []byte) string {
 	if len(data) < 2 {
 		return ""
@@ -62,7 +83,7 @@ func decodeBubble(data []byte) string {
 	if len(data) <= p {
 		return ""
 	}
-	msgData := data[p:]
+	msgData := stripBEPPTags(data[p:])
 	if i := bytes.IndexByte(msgData, 0); i >= 0 {
 		msgData = msgData[:i]
 	}
@@ -151,7 +172,7 @@ func handleInfoText(data []byte) {
 			addMessage(txt)
 			continue
 		}
-		s := strings.TrimSpace(decodeMacRoman(line))
+		s := strings.TrimSpace(decodeMacRoman(stripBEPPTags(line)))
 		if s == "" || strings.HasPrefix(s, "/") {
 			continue
 		}
