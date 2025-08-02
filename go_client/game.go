@@ -362,21 +362,28 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("desc:%d pict:%d mobile:%d", len(descs), len(pics), len(mobiles)), 490*scale, 460*scale)
 
 	// draw status bars
-	barWidth := (gameAreaSizeX*scale - 4*scale*4) / 3
+	gap := 4 * scale
+	barWidth := ((gameAreaSizeX*scale - gap*2) / 3) / 2
 	barHeight := 8 * scale
-	barY := 480*scale + 4*scale
-	x := 4 * scale
+	barY := gameAreaSizeY*scale - barHeight - 2
+	totalWidth := 3*barWidth + gap*2
+	x := (gameAreaSizeX*scale - totalWidth) / 2
+	barAlpha := uint8(0xb3)
 	drawBar := func(x int, cur, max int, clr color.RGBA) {
-		ebitenutil.DrawRect(screen, float64(x), float64(barY), float64(barWidth), float64(barHeight), color.RGBA{0x40, 0x40, 0x40, 0xff})
+		frameClr := color.RGBA{0xff, 0xff, 0xff, barAlpha}
+		bgClr := color.RGBA{0x40, 0x40, 0x40, barAlpha}
+		ebitenutil.DrawRect(screen, float64(x-scale), float64(barY-scale), float64(barWidth+2*scale), float64(barHeight+2*scale), frameClr)
+		ebitenutil.DrawRect(screen, float64(x), float64(barY), float64(barWidth), float64(barHeight), bgClr)
 		if max > 0 && cur > 0 {
 			w := barWidth * cur / max
-			ebitenutil.DrawRect(screen, float64(x), float64(barY), float64(w), float64(barHeight), clr)
+			fillClr := color.RGBA{clr.R, clr.G, clr.B, barAlpha}
+			ebitenutil.DrawRect(screen, float64(x), float64(barY), float64(w), float64(barHeight), fillClr)
 		}
 	}
 	drawBar(x, hp, hpMax, color.RGBA{0xff, 0, 0, 0xff})
-	x += barWidth + 4*scale
+	x += barWidth + gap
 	drawBar(x, balance, balanceMax, color.RGBA{0x00, 0xff, 0x00, 0xff})
-	x += barWidth + 4*scale
+	x += barWidth + gap
 	drawBar(x, sp, spMax, color.RGBA{0x00, 0x00, 0xff, 0xff})
 
 	msgs := getMessages()
