@@ -26,7 +26,7 @@ func main() {
 	name := flag.String("name", "demo", "character name")
 	pass := flag.String("pass", "demo", "character password")
 	clmov := flag.String("clmov", "", "play back a .clMov file")
-	flag.IntVar(&scale, "scale", 2, "upscaling")
+	flag.IntVar(&scale, "scale", 2, "image upscaling")
 	flag.BoolVar(&interp, "smooth", true, "motion smoothing (linear interpolation)")
 	flag.BoolVar(&linear, "filter", false, "image filtering (bilinear)")
 	flag.BoolVar(&onion, "blend", false, "frame blending (smoother animations)")
