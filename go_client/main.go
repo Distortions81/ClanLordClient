@@ -199,15 +199,16 @@ func main() {
 		}
 
 		const kMsgLogOn = 13
-		buf := make([]byte, 16+len(*name)+1+len(answer))
+		nameBytes := encodeMacRoman(*name)
+		buf := make([]byte, 16+len(nameBytes)+1+len(answer))
 		binary.BigEndian.PutUint16(buf[0:2], kMsgLogOn)
 		binary.BigEndian.PutUint16(buf[2:4], 0)
 		binary.BigEndian.PutUint32(buf[4:8], encodeFullVersion(sendVersion))
 		binary.BigEndian.PutUint32(buf[8:12], imagesVersion)
 		binary.BigEndian.PutUint32(buf[12:16], soundsVersion)
-		copy(buf[16:], []byte(*name))
-		buf[16+len(*name)] = 0
-		copy(buf[17+len(*name):], answer)
+		copy(buf[16:], nameBytes)
+		buf[16+len(nameBytes)] = 0
+		copy(buf[17+len(nameBytes):], answer)
 		simpleEncrypt(buf[16:])
 
 		if err := sendTCPMessage(tcpConn, buf); err != nil {

@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"golang.org/x/text/encoding/charmap"
 	"io"
 	"log"
 	"os"
@@ -25,6 +26,18 @@ func simpleEncrypt(data []byte) {
 			j = 0
 		}
 	}
+}
+
+func encodeMacRoman(s string) []byte {
+	out := make([]byte, 0, len(s))
+	for _, r := range s {
+		if b, ok := charmap.Macintosh.EncodeRune(r); ok {
+			out = append(out, b)
+		} else {
+			out = append(out, '?')
+		}
+	}
+	return out
 }
 
 func encodeFullVersion(v int) uint32 { return uint32(v) << 8 }
