@@ -39,6 +39,7 @@ var interp bool
 var onion bool
 var linear bool
 var drawFilter = ebiten.FilterNearest
+var frameCounter int
 
 // drawState tracks information needed by the Ebiten renderer.
 type drawState struct {
@@ -191,6 +192,7 @@ func (g *Game) Update() error {
 		}
 	}
 
+	frameCounter++
 	return nil
 }
 
@@ -381,7 +383,11 @@ func drawPicture(screen *ebiten.Image, p framePicture, shiftX, shiftY int, alpha
 	offY := -float64(shiftY) * (1 - alpha)
 	x := (int(math.Round(float64(p.H)+offX)) + fieldCenterX) * scale
 	y := (int(math.Round(float64(p.V)+offY)) + fieldCenterY) * scale
-	if img := loadImage(p.PictID); img != nil {
+	frame := 0
+	if clImages != nil {
+		frame = clImages.FrameIndex(uint32(p.PictID), frameCounter)
+	}
+	if img := loadImageFrame(p.PictID, frame); img != nil {
 		op := &ebiten.DrawImageOptions{}
 		op.Filter = drawFilter
 		w, h := img.Bounds().Dx(), img.Bounds().Dy()

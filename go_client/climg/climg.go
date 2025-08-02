@@ -360,6 +360,24 @@ func (c *CLImages) NumFrames(id uint32) int {
 	return 1
 }
 
+// FrameIndex returns the picture frame for the given global animation counter.
+// If no animation is defined for the image, it returns 0.
+func (c *CLImages) FrameIndex(id uint32, counter int) int {
+	ref := c.idrefs[id]
+	if ref == nil || ref.numFrames <= 1 {
+		return 0
+	}
+	if ref.numAnims > 0 {
+		af := counter % int(ref.numAnims)
+		pf := int(ref.animFrameTable[af])
+		if pf >= 0 && pf < int(ref.numFrames) {
+			return pf
+		}
+		return 0
+	}
+	return counter % int(ref.numFrames)
+}
+
 // applyCustomPalette replaces entries in col according to mapping and custom.
 // mapping holds color table indices for each customizable slot while custom
 // provides the new palette indices supplied by the server for those slots.
