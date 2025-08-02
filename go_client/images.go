@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"log"
@@ -20,9 +21,9 @@ var (
 	// sheetCache holds the full sprite sheet for a picture ID. These are
 	// used when extracting individual mobile frames.
 	sheetCache = make(map[uint16]*ebiten.Image)
-	// mobileCache caches individual mobile frames keyed by picture ID and
-	// state.
-	mobileCache = make(map[uint32]*ebiten.Image)
+	// mobileCache caches individual mobile frames keyed by picture ID,
+	// state, and color overrides.
+	mobileCache = make(map[string]*ebiten.Image)
 
 	imageMu  sync.Mutex
 	clImages *climg.CLImages
@@ -99,9 +100,10 @@ func loadImage(id uint16) *ebiten.Image {
 }
 
 // loadMobileFrame retrieves a cropped frame from a mobile sprite sheet based on
-// the state value provided by the server.
-func loadMobileFrame(id uint16, state uint8) *ebiten.Image {
-	key := uint32(id)<<8 | uint32(state)
+// the state value provided by the server. The optional colors slice allows
+// caller-supplied palette overrides to be cached separately.
+func loadMobileFrame(id uint16, state uint8, colors []byte) *ebiten.Image {
+	key := fmt.Sprintf("%d-%d-%x", id, state, colors)
 	imageMu.Lock()
 	if img, ok := mobileCache[key]; ok {
 		imageMu.Unlock()
