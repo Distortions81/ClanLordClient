@@ -15,9 +15,9 @@ import (
 // imageCache lazily loads images from the CL_Images archive. If an image is not
 // present, nil is cached to avoid repeated lookups.
 var (
-	// imageCache holds a cropped version of the first frame of an image. It
-	// is used for static pictures on the playfield.
-	imageCache = make(map[uint16]*ebiten.Image)
+	// imageCache holds cropped animation frames keyed by picture ID and
+	// frame index.
+	imageCache = make(map[string]*ebiten.Image)
 	// sheetCache holds the full sprite sheet for a picture ID and optional
 	// custom color palette. The key combines the picture ID with the custom
 	// color bytes so tinted versions are cached separately.
@@ -75,30 +75,45 @@ func loadSheet(id uint16, colors []byte) *ebiten.Image {
 // loadImage retrieves the first frame for the specified picture ID. Images are
 // cached after the first load to avoid reopening files each frame.
 func loadImage(id uint16) *ebiten.Image {
+	return loadImageFrame(id, 0)
+}
+
+// loadImageFrame retrieves a specific animation frame for the specified picture
+// ID. Frames are cached individually after the first load.
+func loadImageFrame(id uint16, frame int) *ebiten.Image {
+	key := fmt.Sprintf("%d-%d", id, frame)
 	imageMu.Lock()
-	if img, ok := imageCache[id]; ok {
+	if img, ok := imageCache[key]; ok {
 		imageMu.Unlock()
 		return img
 	}
 	imageMu.Unlock()
 
-	if sheet := loadSheet(id, nil); sheet != nil {
-		frames := clImages.NumFrames(uint32(id))
-		if frames > 1 {
-			h := sheet.Bounds().Dy() / frames
-			sheet = sheet.SubImage(image.Rect(0, 0, sheet.Bounds().Dx(), h)).(*ebiten.Image)
-		}
-		sheet = addBorder(sheet)
+	sheet := loadSheet(id, nil)
+	if sheet == nil {
 		imageMu.Lock()
-		imageCache[id] = sheet
+		imageCache[key] = nil
 		imageMu.Unlock()
-		return sheet
+		return nil
 	}
 
+	frames := 1
+	if clImages != nil {
+		frames = clImages.NumFrames(uint32(id))
+	}
+	if frames <= 0 {
+		frames = 1
+	}
+	frame = frame % frames
+	h := sheet.Bounds().Dy() / frames
+	y0 := frame * h
+	sub := sheet.SubImage(image.Rect(0, y0, sheet.Bounds().Dx(), y0+h)).(*ebiten.Image)
+	sub = addBorder(sub)
+
 	imageMu.Lock()
-	imageCache[id] = nil
+	imageCache[key] = sub
 	imageMu.Unlock()
-	return nil
+	return sub
 }
 
 // loadMobileFrame retrieves a cropped frame from a mobile sprite sheet based on
