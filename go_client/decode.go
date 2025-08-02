@@ -93,7 +93,25 @@ func decodeBubble(data []byte) string {
 	if i := bytes.IndexByte(msgData, 0); i >= 0 {
 		msgData = msgData[:i]
 	}
-	text := strings.TrimSpace(decodeMacRoman(msgData))
+	lines := bytes.Split(msgData, []byte{'\r'})
+	var text string
+	for _, ln := range lines {
+		if len(ln) == 0 {
+			continue
+		}
+		s := strings.TrimSpace(decodeMacRoman(ln))
+		if s == "" {
+			continue
+		}
+		if parseNightCommand(s) {
+			continue
+		}
+		if text == "" {
+			text = s
+		} else {
+			text += " " + s
+		}
+	}
 	if text == "" {
 		return ""
 	}
@@ -179,7 +197,13 @@ func handleInfoText(data []byte) {
 			continue
 		}
 		s := strings.TrimSpace(decodeMacRoman(stripBEPPTags(line)))
-		if s == "" || strings.HasPrefix(s, "/") {
+		if s == "" {
+			continue
+		}
+		if parseNightCommand(s) {
+			continue
+		}
+		if strings.HasPrefix(s, "/") {
 			continue
 		}
 		fmt.Println(s)
