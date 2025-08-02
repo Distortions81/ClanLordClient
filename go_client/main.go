@@ -56,7 +56,7 @@ func main() {
 	}
 
 	if *clmov != "" {
-		frames, err := parseMovie(*clmov)
+		frames, err := parseMovie(*clmov, *clientVer)
 		if err != nil {
 			log.Fatalf("parse movie: %v", err)
 		}

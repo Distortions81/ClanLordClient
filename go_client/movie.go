@@ -17,7 +17,9 @@ const (
 const movieSignature = 0xdeadbeef
 const oldestMovieVersion = 193
 
-func parseMovie(path string) ([][]byte, error) {
+var movieRevision int32
+
+func parseMovie(path string, clientVersion int) ([][]byte, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -40,7 +42,24 @@ func parseMovie(path string) ([][]byte, error) {
 	if headerLen <= 0 || headerLen > len(data) {
 		headerLen = 24
 	}
-	dlog("movie version %d headerLen %d", version, headerLen)
+	if len(data) < headerLen {
+		return nil, fmt.Errorf("short file")
+	}
+	frameCount := int32(binary.BigEndian.Uint32(data[8:12]))
+	startTime := binary.BigEndian.Uint32(data[12:16])
+	var revision, oldestReader int32
+	if headerLen >= 24 {
+		if len(data) < 24 {
+			return nil, fmt.Errorf("short file")
+		}
+		revision = int32(binary.BigEndian.Uint32(data[16:20]))
+		oldestReader = int32(binary.BigEndian.Uint32(data[20:24]))
+	}
+	movieRevision = revision
+	if oldestReader != 0 && oldestReader > int32(clientVersion) {
+		return nil, fmt.Errorf("movie requires newer client: %d", oldestReader)
+	}
+	dlog("movie version %d headerLen %d frames %d starttime %d revision %d oldestReader %d", version, headerLen, frameCount, startTime, revision, oldestReader)
 	pos := headerLen
 	sign := []byte{0xde, 0xad, 0xbe, 0xef}
 	frames := [][]byte{}
@@ -70,7 +89,7 @@ func parseMovie(path string) ([][]byte, error) {
 		}
 		if flags&flagMobileData != 0 {
 			dlog("MobileData table at %d", pos)
-			pos = parseMobileTable(data, pos)
+			pos = parseMobileTable(data, pos, revision)
 			continue
 		}
 		if flags&flagPictureTable != 0 {
@@ -114,7 +133,8 @@ func parseMovie(path string) ([][]byte, error) {
 	return frames, nil
 }
 
-func parseMobileTable(data []byte, pos int) int {
+func parseMobileTable(data []byte, pos int, revision int32) int {
+	_ = revision
 	const (
 		descTableSize = 266
 		descSize      = 156
