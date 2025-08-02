@@ -29,6 +29,7 @@ type frameMobile struct {
 }
 
 const poseDead = 32
+const maxInterpPixels = 64
 
 // sanity limits for parsed counts to avoid excessive allocations or
 // obviously corrupt packets.
@@ -148,6 +149,10 @@ func pictureShift(prev, cur []framePicture) (int, int, bool) {
 	dlog("pictureShift: counts=%v best=%v count=%d total=%d", counts, best, bestCount, total)
 	if bestCount*2 <= total {
 		dlog("pictureShift: no majority best=%d total=%d", bestCount, total)
+		return 0, 0, false
+	}
+	if best[0]*best[0]+best[1]*best[1] > maxInterpPixels*maxInterpPixels {
+		dlog("pictureShift: motion too large (%d,%d)", best[0], best[1])
 		return 0, 0, false
 	}
 	return best[0], best[1], true
