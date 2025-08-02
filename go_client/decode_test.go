@@ -42,7 +42,7 @@ func TestParseBackendShare(t *testing.T) {
 func TestParseMovieNames(t *testing.T) {
 	state.descriptors = nil
 	state.mobiles = nil
-	if _, err := parseMovie("test.clMov"); err != nil {
+	if _, err := parseMovie("test.clMov", 0); err != nil {
 		t.Fatalf("parseMovie: %v", err)
 	}
 	found := false
