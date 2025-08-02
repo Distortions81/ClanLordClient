@@ -16,6 +16,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 const gameAreaSizeX, gameAreaSizeY = 547, 540
@@ -28,6 +29,7 @@ var mouseDown bool
 var inputActive bool
 var inputText []rune
 var inputBg *ebiten.Image
+var hudPixel *ebiten.Image
 
 var gameCtx context.Context
 var scale int = 3
@@ -47,6 +49,10 @@ type drawState struct {
 	prevDescs   map[uint8]frameDescriptor
 	prevTime    time.Time
 	curTime     time.Time
+
+	hp, hpMax           int
+	sp, spMax           int
+	balance, balanceMax int
 }
 
 var (
@@ -128,6 +134,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 	prevTime := state.prevTime
 	curTime := state.curTime
+	hp := state.hp
+	hpMax := state.hpMax
+	sp := state.sp
+	spMax := state.spMax
+	balance := state.balance
+	balanceMax := state.balanceMax
 	stateMu.Unlock()
 
 	alpha := 1.0
@@ -246,7 +258,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				screen.DrawImage(img, op)
 			}
 		} else {
-			ebitenutil.DrawRect(screen, float64(x)-3*float64(scale), float64(y)-3*float64(scale), 6*float64(scale), 6*float64(scale), color.RGBA{0xff, 0, 0, 0xff})
+			vector.DrawFilledRect(screen, float32(x-3*scale), float32(y-3*scale), float32(6*scale), float32(6*scale), color.RGBA{0xff, 0, 0, 0xff}, false)
 		}
 		texts = append(texts, textItem{x + 6*scale, y - 8*scale, fmt.Sprintf("%d", m.Index)})
 	}
@@ -272,7 +284,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			op.GeoM.Translate(float64(x-w*scale/2), float64(y-h*scale/2))
 			screen.DrawImage(img, op)
 		} else {
-			ebitenutil.DrawRect(screen, float64(x)-2*float64(scale), float64(y)-2*float64(scale), 4*float64(scale), 4*float64(scale), color.RGBA{0, 0, 0xff, 0xff})
+			vector.DrawFilledRect(screen, float32(x-2*scale), float32(y-2*scale), float32(4*scale), float32(4*scale), color.RGBA{0, 0, 0xff, 0xff}, false)
 		}
 		texts = append(texts, textItem{x + 4*scale, y - 8*scale, fmt.Sprintf("%d", p.PictID)})
 	}
@@ -350,6 +362,42 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 	//ebitenutil.DebugPrintAt(screen, strings.Join(lines, "\n"), 4*scale, 4*scale)
 	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("desc:%d pict:%d mobile:%d", len(descs), len(pics), len(mobiles)), 490*scale, 460*scale)
+
+	// draw status bars
+	if hudPixel == nil {
+		hudPixel = ebiten.NewImage(1, 1)
+		hudPixel.Fill(color.White)
+	}
+	drawRect := func(x, y, w, h int, clr color.RGBA) {
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Scale(float64(w), float64(h))
+		op.GeoM.Translate(float64(x), float64(y))
+		op.ColorM.Scale(float64(clr.R)/255, float64(clr.G)/255, float64(clr.B)/255, float64(clr.A)/255)
+		screen.DrawImage(hudPixel, op)
+	}
+	gap := 4 * scale
+	barWidth := ((gameAreaSizeX*scale - gap*2) / 3) / 2
+	barHeight := 8 * scale
+	barY := gameAreaSizeY*scale - barHeight - 2
+	totalWidth := 3*barWidth + gap*2
+	x := (gameAreaSizeX*scale - totalWidth) / 2
+	barAlpha := uint8(0xb3)
+	drawBar := func(x int, cur, max int, clr color.RGBA) {
+		frameClr := color.RGBA{0xff, 0xff, 0xff, barAlpha}
+		bgClr := color.RGBA{0x40, 0x40, 0x40, barAlpha}
+		drawRect(x-scale, barY-scale, barWidth+2*scale, barHeight+2*scale, frameClr)
+		drawRect(x, barY, barWidth, barHeight, bgClr)
+		if max > 0 && cur > 0 {
+			w := barWidth * cur / max
+			fillClr := color.RGBA{clr.R, clr.G, clr.B, barAlpha}
+			drawRect(x, barY, w, barHeight, fillClr)
+		}
+	}
+	drawBar(x, hp, hpMax, color.RGBA{0xff, 0, 0, 0xff})
+	x += barWidth + gap
+	drawBar(x, balance, balanceMax, color.RGBA{0x00, 0xff, 0x00, 0xff})
+	x += barWidth + gap
+	drawBar(x, sp, spMax, color.RGBA{0x00, 0x00, 0xff, 0xff})
 
 	msgs := getMessages()
 	startY := 480*scale - 12*len(msgs)*scale - 6*scale
