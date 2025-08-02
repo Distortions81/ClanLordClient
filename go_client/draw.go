@@ -460,16 +460,26 @@ func parseDrawState(data []byte) bool {
 			return false
 		}
 		bubbleData := stateData[:p+end+1]
-		if txt := decodeBubble(bubbleData); txt != "" {
+		if verb, txt := decodeBubble(bubbleData); txt != "" {
 			name := ""
 			stateMu.Lock()
 			if d, ok := state.descriptors[idx]; ok {
 				name = d.Name
 			}
 			stateMu.Unlock()
-			msg := txt
-			if name != "" {
-				msg = name + " " + txt
+			var msg string
+			if typ&kBubbleTypeMask == kBubbleNarrate {
+				if name != "" {
+					msg = fmt.Sprintf("(%s): %s", name, txt)
+				} else {
+					msg = txt
+				}
+			} else {
+				if name != "" {
+					msg = fmt.Sprintf("%s %s, %q", name, verb, txt)
+				} else {
+					msg = txt
+				}
 			}
 			fmt.Println(msg)
 			if idx != playerIndex {
