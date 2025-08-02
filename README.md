@@ -41,6 +41,8 @@ The Go client accepts the following flags:
 
 - `-host` – server address (default `server.deltatao.com:5010`)
 - `-clmov` – play back a `.clMov` movie file instead of connecting to a server
+- `-account` – account name for character selection
+- `-account-pass` – account password used to retrieve the character list
 - `-name` – character name (default `demo`)
 - `-pass` – character password (default `demo`)
 - `-client-version` – client version number (`kVersionNumber`, default `1440`)
@@ -53,11 +55,12 @@ The Go client accepts the following flags:
 ## Demo characters
 
 The game offers a set of free demo characters accessible using the special
-account name `demo` and password `demo`. When these credentials are supplied,
-the Go client will select a random demo character to log in as:
+account name `demo` and password `demo`. When these credentials are supplied
+with `-account` and `-account-pass`, the client will list the available
+characters and allow one to be selected:
 
 ```bash
-go run ./go_client -name demo -pass demo
+go run ./go_client -account demo -account-pass demo -pass demo
 ```
 
 The default server address is `server.deltatao.com:5010` and can be overridden
