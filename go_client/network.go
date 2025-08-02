@@ -7,6 +7,8 @@ import (
 	"io"
 	"net"
 	"os"
+
+	"github.com/hajimehoshi/ebiten/v2"
 )
 
 func sendIdentifiers(conn net.Conn, clientVersion, imagesVersion, soundsVersion uint32) error {
@@ -91,6 +93,12 @@ func readUDPMessage(conn net.Conn) ([]byte, error) {
 func sendPlayerInput(conn net.Conn) error {
 	const kMsgPlayerInput = 3
 	flags := uint16(0)
+
+	x, y := ebiten.CursorPosition()
+	mouseX = uint16(x / scale)
+	mouseY = uint16(y / scale)
+	mouseDown = ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
+
 	if mouseDown {
 		flags = kPIMDownField
 	}

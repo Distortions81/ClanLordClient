@@ -56,15 +56,7 @@ var (
 type Game struct{}
 
 func (g *Game) Update() error {
-	select {
-	case <-gameCtx.Done():
-		return fmt.Errorf("context done")
-	default:
-	}
-	x, y := ebiten.CursorPosition()
-	mouseX = uint16(x / scale)
-	mouseY = uint16(y / scale)
-	mouseDown = ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
+
 	return nil
 }
 
@@ -340,11 +332,7 @@ func runGame(ctx context.Context) {
 }
 
 func sendInputLoop(ctx context.Context, conn net.Conn) {
-	// The original C client sends input roughly once per frame
-	// (~20 times per second). Using a long interval here results in
-	// very sluggish or broken click-to-move behaviour, so shorten
-	// the ticker to match the classic client.
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		if err := sendPlayerInput(conn); err != nil {
