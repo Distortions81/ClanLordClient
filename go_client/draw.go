@@ -94,8 +94,8 @@ func pictureShift(prev, cur []framePicture) (int, int, bool) {
 		return 0, 0, false
 	}
 
-	counts := make(map[[2]int]int)
-	total := 0
+	counts := make(map[[2]int]float64)
+	var total float64
 	maxInt := int(^uint(0) >> 1)
 	for _, p := range prev {
 		if !onScreen(p) {
@@ -119,8 +119,9 @@ func pictureShift(prev, cur []framePicture) (int, int, bool) {
 			}
 		}
 		if matched {
-			counts[[2]int{bestDx, bestDy}]++
-			total++
+			weight := 1.0 / float64(bestDist+1)
+			counts[[2]int{bestDx, bestDy}] += weight
+			total += weight
 		}
 	}
 	if total == 0 {
@@ -129,16 +130,16 @@ func pictureShift(prev, cur []framePicture) (int, int, bool) {
 	}
 
 	best := [2]int{}
-	bestCount := 0
+	var bestCount float64
 	for k, c := range counts {
 		if c > bestCount {
 			best = k
 			bestCount = c
 		}
 	}
-	dlog("pictureShift: counts=%v best=%v count=%d total=%d", counts, best, bestCount, total)
-	if bestCount*2 <= total {
-		dlog("pictureShift: no majority best=%d total=%d", bestCount, total)
+	dlog("pictureShift: counts=%v best=%v count=%.2f total=%.2f", counts, best, bestCount, total)
+	if bestCount < total/3 {
+		dlog("pictureShift: no significant shift best=%.2f total=%.2f", bestCount, total)
 		return 0, 0, false
 	}
 	return best[0], best[1], true
