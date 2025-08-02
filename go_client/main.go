@@ -23,15 +23,16 @@ import (
 
 func main() {
 	host := flag.String("host", "server.deltatao.com:5010", "server address")
-	clmov := flag.String("clmov", "test.clMov", "play back a .clMov file")
 	name := flag.String("name", "demo", "character name")
 	pass := flag.String("pass", "demo", "character password")
-	clientVer := flag.Int("client-version", 1440, "client version number (kVersionNumber)")
-	flag.BoolVar(&debug, "debug", false, "enable debug logging")
-	flag.IntVar(&scale, "scale", 2, "screen scale factor")
-	flag.BoolVar(&interp, "interp", true, "enable movement interpolation")
+	clmov := flag.String("clmov", "", "play back a .clMov file")
+	flag.IntVar(&scale, "scale", 2, "screen scale factor (upscaling)")
+	flag.BoolVar(&interp, "interp", true, "enable motion interpolation (smoothing)")
 	flag.BoolVar(&onion, "onion", false, "cross-fade sprite animations")
-	flag.BoolVar(&linear, "linear", false, "use linear filtering")
+	flag.BoolVar(&linear, "linear", false, "use linear filtering (softer images)")
+	clientVer := flag.Int("client-version", 1440, "client version number (for testing)")
+	flag.BoolVar(&debug, "debug", false, "enable verbose/debug logging")
+
 	flag.Parse()
 
 	if linear {
