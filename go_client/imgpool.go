@@ -11,6 +11,11 @@ var (
 	imgPool = make(map[int][]*ebiten.Image)
 )
 
+const (
+	// maxUnusedSprites limits the number of cached images retained per size.
+	maxUnusedSprites = 100
+)
+
 // nextPow2 returns the next power-of-two value >= n.
 func nextPow2(n int) int {
 	p := 1
@@ -45,6 +50,8 @@ func recycleTempImage(img *ebiten.Image) {
 	}
 	s := img.Bounds().Dx()
 	poolMu.Lock()
-	imgPool[s] = append(imgPool[s], img)
-	poolMu.Unlock()
+	defer poolMu.Unlock()
+	if len(imgPool[s]) < maxUnusedSprites {
+		imgPool[s] = append(imgPool[s], img)
+	}
 }
