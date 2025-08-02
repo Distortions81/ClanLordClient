@@ -47,6 +47,10 @@ type drawState struct {
 	prevDescs   map[uint8]frameDescriptor
 	prevTime    time.Time
 	curTime     time.Time
+
+	hp, hpMax           int
+	sp, spMax           int
+	balance, balanceMax int
 }
 
 var (
@@ -128,6 +132,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 	prevTime := state.prevTime
 	curTime := state.curTime
+	hp := state.hp
+	hpMax := state.hpMax
+	sp := state.sp
+	spMax := state.spMax
+	balance := state.balance
+	balanceMax := state.balanceMax
 	stateMu.Unlock()
 
 	alpha := 1.0
@@ -350,6 +360,24 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 	//ebitenutil.DebugPrintAt(screen, strings.Join(lines, "\n"), 4*scale, 4*scale)
 	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("desc:%d pict:%d mobile:%d", len(descs), len(pics), len(mobiles)), 490*scale, 460*scale)
+
+	// draw status bars
+	barWidth := (gameAreaSizeX*scale - 4*scale*4) / 3
+	barHeight := 8 * scale
+	barY := 480*scale + 4*scale
+	x := 4 * scale
+	drawBar := func(x int, cur, max int, clr color.RGBA) {
+		ebitenutil.DrawRect(screen, float64(x), float64(barY), float64(barWidth), float64(barHeight), color.RGBA{0x40, 0x40, 0x40, 0xff})
+		if max > 0 && cur > 0 {
+			w := barWidth * cur / max
+			ebitenutil.DrawRect(screen, float64(x), float64(barY), float64(w), float64(barHeight), clr)
+		}
+	}
+	drawBar(x, hp, hpMax, color.RGBA{0xff, 0, 0, 0xff})
+	x += barWidth + 4*scale
+	drawBar(x, balance, balanceMax, color.RGBA{0x00, 0xff, 0x00, 0xff})
+	x += barWidth + 4*scale
+	drawBar(x, sp, spMax, color.RGBA{0x00, 0x00, 0xff, 0xff})
 
 	msgs := getMessages()
 	startY := 480*scale - 12*len(msgs)*scale - 6*scale
