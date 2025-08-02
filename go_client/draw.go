@@ -42,6 +42,7 @@ const (
 // pictureShiftFails counts picture shift failures for debugging.
 var pictureShiftFails int
 
+
 // bitReader helps decode the packed picture fields.
 type bitReader struct {
 	data   []byte
@@ -353,35 +354,22 @@ func parseDrawState(data []byte) bool {
 	copy(newPics, prevPics[:again])
 	copy(newPics[again:], pics)
 	shiftOK := true
-	dx, dy := 0, 0
 	if interp {
-		dx, dy, shiftOK = pictureShift(prevPics, newPics)
-		dlog("interp pictures again=%d prev=%d cur=%d shift=(%d,%d) ok=%t", again, len(prevPics), len(newPics), dx, dy, shiftOK)
-		if !shiftOK {
+		var ok bool
+		dx, dy, ok := pictureShift(prevPics, newPics)
+		dlog("interp pictures again=%d prev=%d cur=%d shift=(%d,%d) ok=%t", again, len(prevPics), len(newPics), dx, dy, ok)
+		if !ok {
 			dlog("prev pics: %s", picturesSummary(prevPics))
 			dlog("new  pics: %s", picturesSummary(newPics))
+			state.picShiftX = 0
+			state.picShiftY = 0
+		} else {
+			state.picShiftX = dx
+			state.picShiftY = dy
 		}
+		shiftOK = ok
 	}
-	prevPlayer, okPrev := state.mobiles[playerIndex]
-	curPlayer := frameMobile{}
-	okCur := false
-	for _, m := range mobiles {
-		if m.Index == playerIndex {
-			curPlayer = m
-			okCur = true
-			break
-		}
-	}
-	newArea := true
-	if okPrev && okCur {
-		dx := int(curPlayer.H) - int(prevPlayer.H)
-		dy := int(curPlayer.V) - int(prevPlayer.V)
-		if dx*dx+dy*dy <= 64*64 {
-			newArea = false
-		}
-	}
-	state.lastAckFrame = ackFrame
-	state.lastResendFrame = resendFrame
+	newArea := pictAgain == 0 || !shiftOK
 	if newArea {
 		state.picShiftX = 0
 		state.picShiftY = 0
@@ -392,37 +380,6 @@ func parseDrawState(data []byte) bool {
 		state.curTime = time.Time{}
 	} else {
 		state.pictures = newPics
-		if interp {
-			if shiftOK {
-				state.picShiftX = dx
-				state.picShiftY = dy
-			} else {
-				pictureShiftFails++
-				dlog("picture shift failed (%d)", pictureShiftFails)
-				prevPlayer, okPrev := state.mobiles[playerIndex]
-				curPlayer := frameMobile{}
-				okCur := false
-				for _, m := range mobiles {
-					if m.Index == playerIndex {
-						curPlayer = m
-						okCur = true
-						break
-					}
-				}
-				if okPrev && okCur {
-					state.picShiftX = int(curPlayer.H) - int(prevPlayer.H)
-					state.picShiftY = int(curPlayer.V) - int(prevPlayer.V)
-					dlog("player shift fallback dx=%d dy=%d", state.picShiftX, state.picShiftY)
-				} else {
-					state.picShiftX = 0
-					state.picShiftY = 0
-					dlog("player shift fallback unavailable prev=%t cur=%t", okPrev, okCur)
-				}
-			}
-		} else {
-			state.picShiftX = 0
-			state.picShiftY = 0
-		}
 	}
 
 	needAnimUpdate := !newArea && (interp || (onion && changed))
