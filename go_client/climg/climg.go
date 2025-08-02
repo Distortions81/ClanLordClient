@@ -51,6 +51,7 @@ const (
 
 	pictDefFlagTransparent = 0x8000
 	pictDefBlendMask       = 0x0003
+	pictDefCustomColors    = 0x2000
 )
 
 func Load(path string) (*CLImages, error) {
@@ -278,9 +279,22 @@ func (c *CLImages) Get(id uint32) *ebiten.Image {
 		}
 	}
 
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	// prepare color table and handle custom palette row if present
 	pal := palette // from palette.go
-	col := colLoc.colorBytes
+	col := append([]uint16(nil), colLoc.colorBytes...)
+
+	// Some sprites embed a row of color indices used to map per-mobile
+	// custom colors. The row is only needed when those overrides are
+	// applied, so for default rendering we simply drop it before
+	// constructing the final image.
+	if ref.flags&pictDefCustomColors != 0 {
+		if len(data) >= width {
+			data = data[width:]
+			height--
+		}
+	}
+	pixelCount = len(data)
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
 
 	alpha := uint8(255)
 	switch ref.flags & pictDefBlendMask {
