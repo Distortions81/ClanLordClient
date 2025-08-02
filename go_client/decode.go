@@ -25,19 +25,21 @@ func decodeBEPP(data []byte) string {
 	if i := bytes.IndexByte(textBytes, 0); i >= 0 {
 		textBytes = textBytes[:i]
 	}
+	text := strings.TrimSpace(decodeMacRoman(textBytes))
+	if text == "" {
+		return ""
+	}
+
 	switch prefix {
 	case "th":
-		text := strings.TrimSpace(decodeMacRoman(textBytes))
 		if text != "" {
 			return "think: " + text
 		}
 	case "in":
-		text := strings.TrimSpace(decodeMacRoman(textBytes))
 		if text != "" {
 			return "info: " + text
 		}
 	case "sh":
-		text := strings.TrimSpace(decodeMacRoman(textBytes))
 		if text != "" {
 			return "share: " + text
 		}
