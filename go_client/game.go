@@ -16,7 +16,9 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/hajimehoshi/ebiten/v2/text"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	"golang.org/x/image/font/basicfont"
 )
 
 const gameAreaSizeX, gameAreaSizeY = 547, 540
@@ -256,6 +258,18 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				op.GeoM.Scale(float64(scale), float64(scale))
 				op.GeoM.Translate(float64(x-size*scale/2), float64(y-size*scale/2))
 				screen.DrawImage(img, op)
+			}
+			if d, ok := descMap[m.Index]; ok && d.Name != "" {
+				textClr, bgClr, frameClr := mobileNameColors(m.Colors)
+				face := basicfont.Face7x13
+				bounds := text.BoundString(face, d.Name)
+				w := bounds.Dx()
+				h := bounds.Dy()
+				top := y + size*scale/2 + 2*scale
+				left := x - w/2 - 2
+				vector.StrokeRect(screen, float32(left), float32(top), float32(w+4), float32(h+4), 1, frameClr, false)
+				ebitenutil.DrawRect(screen, float64(left+1), float64(top+1), float64(w+2), float64(h+2), bgClr)
+				text.Draw(screen, d.Name, face, left+2, top+1+h, textClr)
 			}
 		} else {
 			vector.DrawFilledRect(screen, float32(x-3*scale), float32(y-3*scale), float32(6*scale), float32(6*scale), color.RGBA{0xff, 0, 0, 0xff}, false)
