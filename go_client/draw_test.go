@@ -44,3 +44,36 @@ func TestParseDrawStatePreservesName(t *testing.T) {
 		t.Fatalf("empty player name registered")
 	}
 }
+
+// TestParseDrawStatePreservesMobiles ensures that incoming draw state packets
+// with zero mobile entries do not clear previously known mobiles. Without this
+// behavior player names disappear during movie playback.
+func TestParseDrawStatePreservesMobiles(t *testing.T) {
+	debug = false
+	players = make(map[string]*Player)
+	state.descriptors = map[uint8]frameDescriptor{}
+	state.mobiles = map[uint8]frameMobile{
+		1: {Index: 1, H: 10, V: 20},
+	}
+
+	data := []byte{
+		0,          // ackCmd
+		0, 0, 0, 0, // ackFrame
+		0, 0, 0, 0, // resendFrame
+		0,                   // descCount
+		0, 0, 0, 0, 0, 0, 0, // stats (hp..lighting)
+		0, // pictCount
+		0, // mobileCount
+		0, // info text terminator
+		0, // bubble count
+	}
+	msg := make([]byte, 2+len(data))
+	binary.BigEndian.PutUint16(msg[:2], 2)
+	copy(msg[2:], data)
+
+	handleDrawState(msg)
+
+	if len(state.mobiles) != 1 {
+		t.Fatalf("mobiles cleared: %#v", state.mobiles)
+	}
+}
