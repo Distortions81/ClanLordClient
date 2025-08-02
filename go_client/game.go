@@ -199,6 +199,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	alpha, fade := computeInterpolation(snap.prevTime, snap.curTime)
 	dlog("Draw alpha=%.2f shift=(%d,%d) pics=%d", alpha, snap.picShiftX, snap.picShiftY, len(snap.pictures))
 	drawScene(screen, snap, alpha, fade)
+	drawNightOverlay(screen)
 	drawStatusBars(screen, snap)
 	drawMessages(screen, getMessages())
 	if inputActive {

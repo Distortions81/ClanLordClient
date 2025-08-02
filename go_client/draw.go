@@ -249,7 +249,8 @@ func parseDrawState(data []byte) bool {
 	spMax := int(data[p+3])
 	bal := int(data[p+4])
 	balMax := int(data[p+5])
-	// lighting := data[p+6]
+	lighting := data[p+6]
+	gNight.SetFlags(uint(lighting))
 	p += 7
 
 	if len(data) <= p {
