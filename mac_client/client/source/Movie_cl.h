@@ -213,6 +213,7 @@ static	ulong				sFrameTicks;
 	size_t					mBufferLen;			// used buffer size
 	int						mReadFrameDelay;	// control playback speed
 	int						mPlaybackFrame;		// where we are at
+	bool			mSaveGameStatePending;	// true until game state saved
 
 #if DTS_LITTLE_ENDIAN
 	static void				SwapEndian(	SFrameHead& );

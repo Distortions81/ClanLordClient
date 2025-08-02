@@ -20,6 +20,7 @@
 #include "VersionNumber_cl.h"
 #include "Frame_cl.h"
 #include "Movie_cl.h"
+#include <cstring>
 
 /*
 **	static class data
@@ -34,14 +35,15 @@ ulong		CCLMovie::sFrameTicks		= 0;
 **	movie constructor
 */
 CCLMovie::CCLMovie( DTSFileSpec * inMovie ) :
-	mFileRefNum( -1 ),
-	mWriteMode( false ),
-	mBufferPos( 0 ),
-	mBufferLen( 0 ),
-	mReadFrameDelay( ticksPerFrame ),
-	mPlaybackFrame( 0 )
+mFileRefNum( -1 ),
+mWriteMode( false ),
+mBufferPos( 0 ),
+mBufferLen( 0 ),
+mReadFrameDelay( ticksPerFrame ),
+mPlaybackFrame( 0 ),
+mSaveGameStatePending( false )
 {
-	__Verify_noErr( DTSFileSpec_CopyToFSRef( inMovie, &mFileSpec ) );
+__Verify_noErr( DTSFileSpec_CopyToFSRef( inMovie, &mFileSpec ) );
 }
 
 
@@ -173,14 +175,33 @@ CCLMovie::Open( bool inWriteMode )
 		mFileHead.oldestReader	= (353 << 8) + 0;
 		err = WriteHeader();
 		
-		// append game state data at end of file
+		// append game state data at end of file, defer until hero descriptor present
 		if ( noErr == err )
 			{
 			err = FSSetForkPosition( mFileRefNum, fsFromLEOF, 0 );
 			__Check_noErr( err );
 			}
 		if ( noErr == err )
-			err = SaveGameStateData();
+			{
+			mSaveGameStatePending = true;
+			bool hasHero = gThisPlayer
+				&& gThisPlayer >= gDescTable
+				&& gThisPlayer < gDescTable + kDescTableSize
+				&& gThisPlayer->descMobile
+				&& gThisPlayer->descMobile >= gDSMobile
+				&& gThisPlayer->descMobile < gDSMobile + gNumMobiles;
+			if ( hasHero )
+				{
+				err = SaveGameStateData();
+				if ( noErr == err )
+					mSaveGameStatePending = false;
+				}
+			else
+				{
+				gNumMobiles = 0;
+				memset( gDSMobile, 0, sizeof gDSMobile );
+				}
+			}
 		}
 	
 	return err;
@@ -487,6 +508,22 @@ SwapEndian( CCLFrame::SFramePict& p )
 DTSError
 CCLMovie::WriteFrame( const void * inFrame, size_t inFrameLen, uint inFlags )
 {
+	if ( mWriteMode && mSaveGameStatePending )
+		{
+		bool hasHero = gThisPlayer
+			&& gThisPlayer >= gDescTable
+			&& gThisPlayer < gDescTable + kDescTableSize
+			&& gThisPlayer->descMobile
+			&& gThisPlayer->descMobile >= gDSMobile
+			&& gThisPlayer->descMobile < gDSMobile + gNumMobiles;
+		if ( hasHero )
+			{
+			DTSError gsErr = SaveGameStateData();
+			if ( gsErr != noErr )
+				return gsErr;
+			mSaveGameStatePending = false;
+			}
+		}
 	SFrameHead head =
 		{
 		packet_Sign,
@@ -1261,12 +1298,17 @@ CCLMovie::SaveGameStateData()
 {
 	DTSError err = SaveGameState();
 	if ( noErr == err )
+		{
+		if ( gThisPlayer && gThisPlayer->descMobile
+		&& ( gThisPlayer->descMobile < gDSMobile
+		|| gThisPlayer->descMobile >= gDSMobile + gNumMobiles ) )
+			gNumMobiles = 0;
 		err = SaveMobileTable();
+		}
 	if ( noErr == err )
 		err = SavePictureTable();
 	return err;
 }
-
 
 #pragma mark ** External API
 
