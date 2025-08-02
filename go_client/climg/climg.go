@@ -40,7 +40,7 @@ type CLImages struct {
 	idrefs map[uint32]*dataLocation
 	colors map[uint32]*dataLocation
 	images map[uint32]*dataLocation
-	cache  map[uint32]*ebiten.Image
+	cache  map[string]*ebiten.Image
 	mu     sync.Mutex
 }
 
@@ -85,7 +85,7 @@ func Load(path string) (*CLImages, error) {
 		idrefs: make(map[uint32]*dataLocation, entryCount),
 		colors: make(map[uint32]*dataLocation, entryCount),
 		images: make(map[uint32]*dataLocation, entryCount),
-		cache:  make(map[uint32]*ebiten.Image),
+		cache:  make(map[string]*ebiten.Image),
 	}
 
 	for i := uint32(0); i < entryCount; i++ {
@@ -186,29 +186,30 @@ func Load(path string) (*CLImages, error) {
 // GameWin_cl.cp where specific flag combinations select distinct
 // alpha maps.
 func alphaTransparentForFlags(flags uint32) (uint8, bool) {
-        switch flags & (pictDefFlagTransparent | pictDefBlendMask) {
-        case pictDefFlagTransparent:
-                return 0xFF, true // kPictDefFlagTransparent
-        case 1:
-                return 0xBF, false // kPictDef25Blend
-        case 2:
-                return 0x7F, false // kPictDef50Blend
-        case 3:
-                return 0x3F, false // kPictDef75Blend
-        case pictDefFlagTransparent | 1:
-                return 0xBF, true // kPictDefFlagTransparent + kPictDef25Blend
-        case pictDefFlagTransparent | 2:
-                return 0x7F, true // kPictDefFlagTransparent + kPictDef50Blend
-        case pictDefFlagTransparent | 3:
-                return 0x3F, true // kPictDefFlagTransparent + kPictDef75Blend
-        default:
-                return 0xFF, false // kPictDefNoBlend or unknown
-        }
+	switch flags & (pictDefFlagTransparent | pictDefBlendMask) {
+	case pictDefFlagTransparent:
+		return 0xFF, true // kPictDefFlagTransparent
+	case 1:
+		return 0xBF, false // kPictDef25Blend
+	case 2:
+		return 0x7F, false // kPictDef50Blend
+	case 3:
+		return 0x3F, false // kPictDef75Blend
+	case pictDefFlagTransparent | 1:
+		return 0xBF, true // kPictDefFlagTransparent + kPictDef25Blend
+	case pictDefFlagTransparent | 2:
+		return 0x7F, true // kPictDefFlagTransparent + kPictDef50Blend
+	case pictDefFlagTransparent | 3:
+		return 0x3F, true // kPictDefFlagTransparent + kPictDef75Blend
+	default:
+		return 0xFF, false // kPictDefNoBlend or unknown
+	}
 }
 
-func (c *CLImages) Get(id uint32) *ebiten.Image {
+func (c *CLImages) Get(id uint32, custom []byte) *ebiten.Image {
+	key := fmt.Sprintf("%d-%x", id, custom)
 	c.mu.Lock()
-	if img, ok := c.cache[id]; ok {
+	if img, ok := c.cache[key]; ok {
 		c.mu.Unlock()
 		return img
 	}
@@ -309,22 +310,23 @@ func (c *CLImages) Get(id uint32) *ebiten.Image {
 	pal := palette // from palette.go
 	col := append([]uint16(nil), colLoc.colorBytes...)
 
-	// Some sprites embed a row of color indices used to map per-mobile
-	// custom colors. The row is only needed when those overrides are
-	// applied, so for default rendering we simply drop it before
-	// constructing the final image.
+	var mapping []byte
 	if ref.flags&pictDefCustomColors != 0 {
 		if len(data) >= width {
+			mapping = data[:width]
 			data = data[width:]
 			height--
 		}
+		if len(custom) > 0 {
+			applyCustomPalette(col, mapping, custom)
+		}
 	}
-       pixelCount = len(data)
-       img := image.NewRGBA(image.Rect(0, 0, width, height))
+	pixelCount = len(data)
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
 
-       // Determine alpha level and transparency handling based on
-       // sprite definition flags.
-       alpha, transparent := alphaTransparentForFlags(ref.flags)
+	// Determine alpha level and transparency handling based on
+	// sprite definition flags.
+	alpha, transparent := alphaTransparentForFlags(ref.flags)
 
 	for i := 0; i < pixelCount; i++ {
 		idx := col[data[i]]
@@ -344,7 +346,7 @@ func (c *CLImages) Get(id uint32) *ebiten.Image {
 
 	eimg := ebiten.NewImageFromImage(img)
 	c.mu.Lock()
-	c.cache[id] = eimg
+	c.cache[key] = eimg
 	c.mu.Unlock()
 	return eimg
 }
@@ -356,6 +358,18 @@ func (c *CLImages) NumFrames(id uint32) int {
 		return int(ref.numFrames)
 	}
 	return 1
+}
+
+// applyCustomPalette replaces entries in col according to mapping and custom.
+// mapping holds color table indices for each customizable slot while custom
+// provides the new palette indices supplied by the server for those slots.
+func applyCustomPalette(col []uint16, mapping []byte, custom []byte) {
+	for i := 0; i < len(custom) && i < len(mapping); i++ {
+		idx := int(mapping[i])
+		if idx >= 0 && idx < len(col) {
+			col[idx] = uint16(custom[i])
+		}
+	}
 }
 
 // Plane returns the drawing plane for the given image ID. If unknown, it
