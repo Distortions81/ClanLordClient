@@ -285,11 +285,12 @@ func (c *CLImages) Get(id uint32) *ebiten.Image {
 	col := append([]uint16(nil), colLoc.colorBytes...)
 
 	// If the image embeds a custom color lookup row, use its first few
-	// pixels to remap the initial entries of the color table. Skip the
-	// transparent color at index 0 and limit the remap to the known
-	// custom-color count so we don't clobber unrelated palette entries.
-	// Drop the palette row from the pixel data before constructing the
-	// final image so the strip doesn't render onscreen.
+	// pixels to remap the initial entries of the color table. The palette
+	// row encodes default mappings for the customizable color slots. We
+	// translate those indices through the original color table so that the
+	// resulting table maps each slot directly to a base palette index. Drop
+	// the palette row from the pixel data before constructing the final
+	// image so the strip doesn't render onscreen.
 	if ref.flags&pictDefCustomColors != 0 {
 		orig := append([]uint16(nil), col...)
 		n := maxCustomColors
@@ -299,10 +300,10 @@ func (c *CLImages) Get(id uint32) *ebiten.Image {
 		if n > len(data) {
 			n = len(data)
 		}
-		for i := 0; i < n && i+1 < len(col); i++ {
+		for i := 0; i < n && i < len(col); i++ {
 			idx := int(data[i])
 			if idx < len(orig) {
-				col[i+1] = orig[idx]
+				col[i] = orig[idx]
 			}
 		}
 		data = data[width:]
