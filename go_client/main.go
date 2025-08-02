@@ -26,11 +26,11 @@ func main() {
 	name := flag.String("name", "demo", "character name")
 	pass := flag.String("pass", "demo", "character password")
 	clientVer := flag.Int("client-version", 1440, "client version number (kVersionNumber)")
-	flag.BoolVar(&debug, "debug", true, "enable debug logging")
+	flag.BoolVar(&debug, "debug", false, "enable debug logging")
 	flag.IntVar(&scale, "scale", 2, "screen scale factor")
-	flag.BoolVar(&interp, "interp", false, "enable movement interpolation")
-	flag.BoolVar(&onion, "onion", false, "cross-fade sprite animations")
-	flag.BoolVar(&linear, "linear", false, "use linear filtering")
+	flag.BoolVar(&interp, "interp", true, "enable movement interpolation")
+	flag.BoolVar(&onion, "onion", true, "cross-fade sprite animations")
+	flag.BoolVar(&linear, "linear", true, "use linear filtering")
 	flag.Parse()
 
 	if linear {
