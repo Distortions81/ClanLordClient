@@ -263,6 +263,15 @@ func main() {
 
 func extractMoviePlayerName(frames [][]byte) string {
 	stateMu.Lock()
+	for idx, m := range state.mobiles {
+		if m.H == 0 && m.V == 0 {
+			if d, ok := state.descriptors[idx]; ok && d.Type == kDescPlayer {
+				playerIndex = idx
+				stateMu.Unlock()
+				return d.Name
+			}
+		}
+	}
 	if len(state.descriptors) > 0 {
 		var (
 			best uint8 = 0xff

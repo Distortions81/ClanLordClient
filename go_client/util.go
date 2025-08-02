@@ -29,7 +29,10 @@ func simpleEncrypt(data []byte) {
 
 func encodeFullVersion(v int) uint32 { return uint32(v) << 8 }
 
-const baseVersion = 1353
+const (
+	baseVersion = 1353
+	kDescPlayer = 1
+)
 
 func hexDump(prefix string, data []byte) {
 	if !debug {
