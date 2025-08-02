@@ -69,13 +69,17 @@ func parseMovie(path string, clientVersion int) ([][]byte, error) {
 				break
 			}
 			maxSize := int(binary.BigEndian.Uint32(data[pos+12 : pos+16]))
-			pos += 24 + maxSize
-			continue
+			start := pos + 24
+			end := start + maxSize
+			if end > len(data) {
+				break
+			}
+			parseGameState(data[start:end], version, revision)
+			pos = end
 		}
 		if flags&flagMobileData != 0 {
 			dlog("MobileData table at %d", pos)
 			pos = parseMobileTable(data, pos, version, revision)
-			continue
 		}
 		if flags&flagPictureTable != 0 {
 			dlog("PictureTable at %d", pos)
@@ -98,7 +102,6 @@ func parseMovie(path string, clientVersion int) ([][]byte, error) {
 			stateMu.Lock()
 			state.pictures = pics
 			stateMu.Unlock()
-			continue
 		}
 		if size > 0 {
 			if pos+size > len(data) {
@@ -116,6 +119,52 @@ func parseMovie(path string, clientVersion int) ([][]byte, error) {
 		frameNum++
 	}
 	return frames, nil
+}
+
+// parseGameState decodes an initial game state block found in movies. The
+// payload mirrors the data sent by the server after login and may embed
+// descriptor and picture tables. The decoding here is intentionally
+// lightweight; only the pieces needed to prime state.mobiles and
+// state.descriptors are extracted.
+func parseGameState(gs []byte, version, revision uint16) {
+	if len(gs) == 0 {
+		return
+	}
+	if i := bytes.IndexByte(gs, 0); i >= 0 {
+		handleInfoText(gs[:i])
+		gs = gs[i+1:]
+	}
+
+	// Attempt to extract a picture table if present. The table format
+	// matches the PictureTable blocks used by regular frames.
+	if len(gs) >= 2 {
+		count := int(binary.BigEndian.Uint16(gs[:2]))
+		size := 2 + 6*count + 4
+		if count > 0 && size <= len(gs) {
+			pos := 2
+			pics := make([]framePicture, 0, count)
+			for i := 0; i < count && pos+6 <= len(gs); i++ {
+				id := binary.BigEndian.Uint16(gs[pos : pos+2])
+				h := int16(binary.BigEndian.Uint16(gs[pos+2 : pos+4]))
+				v := int16(binary.BigEndian.Uint16(gs[pos+4 : pos+6]))
+				pos += 6
+				pics = append(pics, framePicture{PictID: id, H: h, V: v})
+			}
+			if pos+4 <= len(gs) {
+				pos += 4
+			}
+			stateMu.Lock()
+			state.pictures = pics
+			stateMu.Unlock()
+			gs = gs[pos:]
+		}
+	}
+
+	// Mobile tables end with a -1 index sentinel. If that marker exists,
+	// feed the data through the regular parser.
+	if bytes.Contains(gs, []byte{0xff, 0xff, 0xff, 0xff}) {
+		parseMobileTable(gs, 0, version, revision)
+	}
 }
 
 // parseMobileTable decodes the descriptor table for a frame.  Descriptor
