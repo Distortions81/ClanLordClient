@@ -344,16 +344,22 @@ func parseDrawState(data []byte) bool {
 			dlog("new  pics: %s", picturesSummary(newPics))
 		}
 	}
-	prevAck := state.lastAckFrame
-	prevResend := state.lastResendFrame
-	newArea := false
-	if pictAgain == 0 {
-		if len(prevPics) == 0 {
-			newArea = true
-		} else if ackFrame == 0 && resendFrame == 0 {
-			newArea = true
-		} else if ackFrame < prevAck || resendFrame < prevResend {
-			newArea = true
+	prevPlayer, okPrev := state.mobiles[playerIndex]
+	curPlayer := frameMobile{}
+	okCur := false
+	for _, m := range mobiles {
+		if m.Index == playerIndex {
+			curPlayer = m
+			okCur = true
+			break
+		}
+	}
+	newArea := true
+	if okPrev && okCur {
+		dx := int(curPlayer.H) - int(prevPlayer.H)
+		dy := int(curPlayer.V) - int(prevPlayer.V)
+		if dx*dx+dy*dy <= 64*64 {
+			newArea = false
 		}
 	}
 	state.lastAckFrame = ackFrame
