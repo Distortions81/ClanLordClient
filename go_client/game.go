@@ -26,6 +26,8 @@ var gameCtx context.Context
 var scale int = 3
 var interp bool
 var onion bool
+var linear bool
+var drawFilter = ebiten.FilterNearest
 
 // drawState tracks information needed by the Ebiten renderer.
 type drawState struct {
@@ -59,8 +61,8 @@ func (g *Game) Update() error {
 	default:
 	}
 	x, y := ebiten.CursorPosition()
-	mouseX = uint16(x)
-	mouseY = uint16(y)
+	mouseX = uint16(x / scale)
+	mouseY = uint16(y / scale)
 	mouseDown = ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
 	return nil
 }
@@ -166,8 +168,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				v = float64(pm.V)*(1-alpha) + float64(m.V)*alpha
 			}
 		}
-		x := int(math.Round(h)) + fieldCenterX
-		y := int(math.Round(v)) + fieldCenterY
+		x := (int(math.Round(h)) + fieldCenterX) * scale
+		y := (int(math.Round(v)) + fieldCenterY) * scale
 		var img *ebiten.Image
 		if d, ok := descMap[m.Index]; ok {
 			img = loadMobileFrame(d.PictID, m.State)
@@ -199,17 +201,21 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				tmp.DrawImage(img, op2)
 
 				op := &ebiten.DrawImageOptions{}
-				op.GeoM.Translate(float64(x-size/2), float64(y-size/2))
+				op.Filter = drawFilter
+				op.GeoM.Scale(float64(scale), float64(scale))
+				op.GeoM.Translate(float64(x-size*scale/2), float64(y-size*scale/2))
 				screen.DrawImage(tmp, op)
 			} else {
 				op := &ebiten.DrawImageOptions{}
-				op.GeoM.Translate(float64(x-size/2), float64(y-size/2))
+				op.Filter = drawFilter
+				op.GeoM.Scale(float64(scale), float64(scale))
+				op.GeoM.Translate(float64(x-size*scale/2), float64(y-size*scale/2))
 				screen.DrawImage(img, op)
 			}
 		} else {
-			ebitenutil.DrawRect(screen, float64(x)-3, float64(y)-3, 6, 6, color.RGBA{0xff, 0, 0, 0xff})
+			ebitenutil.DrawRect(screen, float64(x)-3*float64(scale), float64(y)-3*float64(scale), 6*float64(scale), 6*float64(scale), color.RGBA{0xff, 0, 0, 0xff})
 		}
-		texts = append(texts, textItem{x + 6, y - 8, fmt.Sprintf("%d", m.Index)})
+		texts = append(texts, textItem{x + 6*scale, y - 8*scale, fmt.Sprintf("%d", m.Index)})
 	}
 
 	drawPicture := func(p framePicture) {
@@ -218,17 +224,19 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		// interpolate toward the new one.
 		offX := -float64(picShiftX) * (1 - alpha)
 		offY := -float64(picShiftY) * (1 - alpha)
-		x := int(math.Round(float64(p.H)+offX)) + fieldCenterX
-		y := int(math.Round(float64(p.V)+offY)) + fieldCenterY
+		x := (int(math.Round(float64(p.H)+offX)) + fieldCenterX) * scale
+		y := (int(math.Round(float64(p.V)+offY)) + fieldCenterY) * scale
 		if img := loadImage(p.PictID); img != nil {
 			op := &ebiten.DrawImageOptions{}
+			op.Filter = drawFilter
 			w, h := img.Bounds().Dx(), img.Bounds().Dy()
-			op.GeoM.Translate(float64(x-w/2), float64(y-h/2))
+			op.GeoM.Scale(float64(scale), float64(scale))
+			op.GeoM.Translate(float64(x-w*scale/2), float64(y-h*scale/2))
 			screen.DrawImage(img, op)
 		} else {
-			ebitenutil.DrawRect(screen, float64(x)-2, float64(y)-2, 4, 4, color.RGBA{0, 0, 0xff, 0xff})
+			ebitenutil.DrawRect(screen, float64(x)-2*float64(scale), float64(y)-2*float64(scale), 4*float64(scale), 4*float64(scale), color.RGBA{0, 0, 0xff, 0xff})
 		}
-		texts = append(texts, textItem{x + 4, y - 8, fmt.Sprintf("%d", p.PictID)})
+		texts = append(texts, textItem{x + 4*scale, y - 8*scale, fmt.Sprintf("%d", p.PictID)})
 	}
 
 	// sort pictures by plane and split them into negative, zero and positive planes
@@ -302,18 +310,18 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	for _, d := range descs {
 		lines = append(lines, fmt.Sprintf("%d:%s id=%d t=%d", d.Index, d.Name, d.PictID, d.Type))
 	}
-	//ebitenutil.DebugPrintAt(screen, strings.Join(lines, "\n"), 4, 4)
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("desc:%d pict:%d mobile:%d", len(descs), len(pics), len(mobiles)), 490, 460)
+	//ebitenutil.DebugPrintAt(screen, strings.Join(lines, "\n"), 4*scale, 4*scale)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("desc:%d pict:%d mobile:%d", len(descs), len(pics), len(mobiles)), 490*scale, 460*scale)
 
 	msgs := getMessages()
-	startY := 480 - 12*len(msgs) - 6
+	startY := 480*scale - 12*len(msgs)*scale - 6*scale
 	for i, msg := range msgs {
-		ebitenutil.DebugPrintAt(screen, msg, 4, startY+12*i)
+		ebitenutil.DebugPrintAt(screen, msg, 4*scale, startY+12*i*scale)
 	}
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return gameAreaSizeX, gameAreaSizeY
+	return gameAreaSizeX * scale, gameAreaSizeY * scale
 }
 
 func runGame(ctx context.Context) {
