@@ -210,6 +210,7 @@ func parseDrawState(data []byte) bool {
 		}
 		d.Colors = append([]byte(nil), data[p:p+cnt]...)
 		p += cnt
+		updatePlayerAppearance(d.Name, d.PictID, d.Colors)
 		descs = append(descs, d)
 	}
 
