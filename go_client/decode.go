@@ -25,20 +25,26 @@ func decodeBEPP(data []byte) string {
 	if i := bytes.IndexByte(textBytes, 0); i >= 0 {
 		textBytes = textBytes[:i]
 	}
-	text := strings.TrimSpace(decodeMacRoman(textBytes))
-	if text == "" {
-		return ""
-	}
 	switch prefix {
 	case "th":
-		return "think: " + text
+		text := strings.TrimSpace(decodeMacRoman(textBytes))
+		if text != "" {
+			return "think: " + text
+		}
 	case "in":
-		return "info: " + text
+		text := strings.TrimSpace(decodeMacRoman(textBytes))
+		if text != "" {
+			return "info: " + text
+		}
 	case "sh":
-		return "share: " + text
-	default:
-		return ""
+		text := strings.TrimSpace(decodeMacRoman(textBytes))
+		if text != "" {
+			return "share: " + text
+		}
+	case "be":
+		parseBackend(textBytes)
 	}
+	return ""
 }
 
 func stripBEPPTags(b []byte) []byte {
