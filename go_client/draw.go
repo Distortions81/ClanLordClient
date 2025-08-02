@@ -427,11 +427,20 @@ func parseDrawState(data []byte) bool {
 	dlog("draw state cmd=%d ack=%d resend=%d desc=%d pict=%d again=%d mobile=%d state=%d",
 		ackCmd, ackFrame, resendFrame, len(descs), len(pics), pictAgain, len(mobiles), len(stateData))
 
-	if idx := bytes.IndexByte(stateData, 0); idx >= 0 {
+	for {
+		if len(stateData) == 0 {
+			return true
+		}
+		idx := bytes.IndexByte(stateData, 0)
+		if idx < 0 {
+			return true
+		}
+		if idx == 0 {
+			stateData = stateData[1:]
+			break
+		}
 		handleInfoText(stateData[:idx])
 		stateData = stateData[idx+1:]
-	} else {
-		return true
 	}
 
 	if len(stateData) > 0 {
