@@ -41,7 +41,7 @@ func main() {
 	clImages, imgErr = climg.Load("CL_Images")
 	if imgErr != nil {
 		log.Printf("load CL_Images: %v", imgErr)
-		addMessage(fmt.Sprintf("load CL_Images: %v", imgErr))
+            addMessage(MsgDefault, fmt.Sprintf("load CL_Images: %v", imgErr))
 	}
 	if imgErr != nil && *clmov != "" {
 		alt := filepath.Join(filepath.Dir(*clmov), "CL_Images")
@@ -51,7 +51,7 @@ func main() {
 			log.Printf("loaded CL_Images from %s", alt)
 		} else {
 			log.Printf("load CL_Images from %s: %v", alt, err)
-			addMessage(fmt.Sprintf("load CL_Images from %s: %v", alt, err))
+                    addMessage(MsgDefault, fmt.Sprintf("load CL_Images from %s: %v", alt, err))
 		}
 	}
 

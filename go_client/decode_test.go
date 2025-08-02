@@ -20,7 +20,7 @@ func TestDecodeBubbleEmptyAfterStripping(t *testing.T) {
 func TestParseBackendInfo(t *testing.T) {
 	players = make(map[string]*Player)
 	data := []byte("\xc2be\xc2in\xc2pnAlice\xc2pn\tHuman\tFemale\tFighter\t")
-	decodeBEPP(data)
+        _, _ = decodeBEPP(data)
 	p := players["Alice"]
 	if p == nil || p.Class != "Fighter" || p.Race != "Human" {
 		t.Fatalf("unexpected player: %#v", p)
@@ -30,7 +30,7 @@ func TestParseBackendInfo(t *testing.T) {
 func TestParseBackendShare(t *testing.T) {
 	players = make(map[string]*Player)
 	data := []byte("\xc2be\xc2sh\xc2pnAlice\xc2pn,\xc2pnBob\xc2pn\t\xc2pnCarol\xc2pn")
-	decodeBEPP(data)
+        _, _ = decodeBEPP(data)
 	if !players["Alice"].Sharee || !players["Bob"].Sharee || !players["Carol"].Sharing {
 		t.Fatalf("share parsing failed: %#v", players)
 	}

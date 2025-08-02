@@ -410,11 +410,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	x += barWidth + gap
 	drawBar(x, sp, spMax, color.RGBA{0x00, 0x00, 0xff, 0xff})
 
-	msgs := getMessages()
-	startY := 480*scale - 12*len(msgs)*scale - 6*scale
-	for i, msg := range msgs {
-		ebitenutil.DebugPrintAt(screen, msg, 4*scale, startY+12*i*scale)
-	}
+        msgs := getMessages()
+        startY := 480*scale - 12*len(msgs)*scale - 6*scale
+        for i, msg := range msgs {
+                ebitenutil.DebugPrintAt(screen, msg.Text, 4*scale, startY+12*i*scale)
+        }
 	if inputActive {
 		if inputBg == nil {
 			inputBg = ebiten.NewImage(gameAreaSizeX*scale, 12*scale)
@@ -480,9 +480,9 @@ func udpReadLoop(ctx context.Context, conn net.Conn) {
 			handleDrawState(m)
 			continue
 		}
-		if txt := decodeMessage(m); txt != "" {
-			fmt.Println(txt)
-			addMessage(txt)
+                if txt := decodeMessage(m); txt != "" {
+                        fmt.Println(txt)
+                        addMessage(MsgDefault, txt)
 		} else {
 			fmt.Printf("udp msg tag %d len %d\n", tag, len(m))
 		}
@@ -514,9 +514,9 @@ loop:
 			handleDrawState(m)
 			continue
 		}
-		if txt := decodeMessage(m); txt != "" {
-			fmt.Println(txt)
-			addMessage(txt)
+                if txt := decodeMessage(m); txt != "" {
+                        fmt.Println(txt)
+                        addMessage(MsgDefault, txt)
 		} else {
 			fmt.Printf("msg tag %d len %d\n", tag, len(m))
 		}
@@ -534,5 +534,5 @@ func sendChat(txt string) {
 			fmt.Printf("send chat: %v\n", err)
 		}
 	}
-	addMessage(txt)
+        addMessage(MsgMySpeech, txt)
 }
