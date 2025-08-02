@@ -93,8 +93,11 @@ func decodeMessage(m []byte) string {
 		return ""
 	}
 	data := append([]byte(nil), m[16:]...)
-	if s := decodeBEPP(data); s != "" {
-		return s
+	if len(data) > 0 && data[0] == 0xC2 {
+		if s := decodeBEPP(data); s != "" {
+			return s
+		}
+		return ""
 	}
 	if s := decodeBubble(data); s != "" {
 		return s
@@ -110,8 +113,11 @@ func decodeMessage(m []byte) string {
 	}
 
 	simpleEncrypt(data)
-	if s := decodeBEPP(data); s != "" {
-		return s
+	if len(data) > 0 && data[0] == 0xC2 {
+		if s := decodeBEPP(data); s != "" {
+			return s
+		}
+		return ""
 	}
 	if s := decodeBubble(data); s != "" {
 		return s
@@ -133,9 +139,11 @@ func handleInfoText(data []byte) {
 		if len(line) == 0 {
 			continue
 		}
-		if txt := decodeBEPP(line); txt != "" {
-			fmt.Println(txt)
-			addMessage(txt)
+		if line[0] == 0xC2 {
+			if txt := decodeBEPP(line); txt != "" {
+				fmt.Println(txt)
+				addMessage(txt)
+			}
 			continue
 		}
 		if txt := decodeBubble(line); txt != "" {
