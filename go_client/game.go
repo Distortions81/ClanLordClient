@@ -42,15 +42,17 @@ var drawFilter = ebiten.FilterNearest
 
 // drawState tracks information needed by the Ebiten renderer.
 type drawState struct {
-	descriptors map[uint8]frameDescriptor
-	pictures    []framePicture
-	picShiftX   int
-	picShiftY   int
-	mobiles     map[uint8]frameMobile
-	prevMobiles map[uint8]frameMobile
-	prevDescs   map[uint8]frameDescriptor
-	prevTime    time.Time
-	curTime     time.Time
+	descriptors     map[uint8]frameDescriptor
+	pictures        []framePicture
+	picShiftX       int
+	picShiftY       int
+	mobiles         map[uint8]frameMobile
+	prevMobiles     map[uint8]frameMobile
+	prevDescs       map[uint8]frameDescriptor
+	prevTime        time.Time
+	curTime         time.Time
+	lastAckFrame    int32
+	lastResendFrame int32
 
 	hp, hpMax           int
 	sp, spMax           int
