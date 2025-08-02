@@ -282,7 +282,6 @@ func extractMoviePlayerName(frames [][]byte) string {
 	for _, m := range frames {
 		if len(m) >= 2 && binary.BigEndian.Uint16(m[:2]) == 2 {
 			data := append([]byte(nil), m[2:]...)
-			simpleEncrypt(data)
 			if n := firstDescriptorName(data); n != "" {
 				return n
 			}
