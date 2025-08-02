@@ -95,8 +95,8 @@ func sendPlayerInput(conn net.Conn) error {
 	flags := uint16(0)
 
 	x, y := ebiten.CursorPosition()
-	mouseX = uint16(x / scale)
-	mouseY = uint16(y / scale)
+	mouseX = int16(x/scale - fieldCenterX)
+	mouseY = int16(y/scale - fieldCenterY)
 	mouseDown = ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
 
 	if mouseDown {
@@ -104,8 +104,8 @@ func sendPlayerInput(conn net.Conn) error {
 	}
 	buf := make([]byte, 20+1)
 	binary.BigEndian.PutUint16(buf[0:2], kMsgPlayerInput)
-	binary.BigEndian.PutUint16(buf[2:4], mouseX)
-	binary.BigEndian.PutUint16(buf[4:6], mouseY)
+	binary.BigEndian.PutUint16(buf[2:4], uint16(mouseX))
+	binary.BigEndian.PutUint16(buf[4:6], uint16(mouseY))
 	binary.BigEndian.PutUint16(buf[6:8], flags)
 	binary.BigEndian.PutUint32(buf[8:12], uint32(ackFrame))
 	binary.BigEndian.PutUint32(buf[12:16], uint32(resendFrame))

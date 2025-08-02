@@ -20,7 +20,7 @@ const gameAreaSizeX, gameAreaSizeY = 547, 540
 const fieldCenterX, fieldCenterY = gameAreaSizeX / 2, gameAreaSizeY / 2
 const epsilon = 0.01 // in pixels
 
-var mouseX, mouseY uint16
+var mouseX, mouseY int16
 var mouseDown bool
 
 var gameCtx context.Context
