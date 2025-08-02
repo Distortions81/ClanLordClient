@@ -145,7 +145,9 @@ func readTCPMessage(connection net.Conn) ([]byte, error) {
 	return buf, nil
 }
 
-// requestCharList fetches the list of characters for the account from the server.
+// requestCharList fetches the list of characters for an account from the server.
+// When the user supplies an account on the command line, the client uses this
+// to prompt for which character to log in with.
 func requestCharList(connection net.Conn, account, password string, challenge []byte, clientVersion, imagesVersion, soundsVersion uint32) ([]string, error) {
 	if err := sendCharListRequest(connection, account, password, challenge, clientVersion, imagesVersion, soundsVersion); err != nil {
 		return nil, err
@@ -157,7 +159,8 @@ func requestCharList(connection net.Conn, account, password string, challenge []
 	return parseCharListResponse(resp)
 }
 
-// sendCharListRequest builds and sends a character list request to the server.
+// sendCharListRequest builds and sends a character list request to the server
+// for the specified account.
 func sendCharListRequest(connection net.Conn, account, password string, challenge []byte, clientVersion, imagesVersion, soundsVersion uint32) error {
 	answer, err := answerChallenge(password, challenge)
 	if err != nil {
@@ -179,7 +182,8 @@ func sendCharListRequest(connection net.Conn, account, password string, challeng
 	return sendTCPMessage(connection, packet)
 }
 
-// parseCharListResponse decrypts and parses the character list response.
+// parseCharListResponse decrypts and parses the character list response,
+// returning the available character names.
 func parseCharListResponse(resp []byte) ([]string, error) {
 	const kMsgCharList = 14
 	if len(resp) < 28 {

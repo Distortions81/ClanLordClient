@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
 	"net"
 	"os"
 	"os/signal"
@@ -24,6 +23,7 @@ import (
 func main() {
 	host := flag.String("host", "server.deltatao.com:5010", "server address")
 	name := flag.String("name", "demo", "character name")
+	account := flag.String("account", "", "account name")
 	pass := flag.String("pass", "demo", "character password")
 	clmov := flag.String("clmov", "", "play back a .clMov file")
 	flag.IntVar(&scale, "scale", 2, "image upscaling")
@@ -34,6 +34,13 @@ func main() {
 	flag.BoolVar(&debug, "debug", false, "verbose/debug logging")
 
 	flag.Parse()
+
+	nameProvided := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "name" {
+			nameProvided = true
+		}
+	})
 
 	if linear {
 		drawFilter = ebiten.FilterLinear
@@ -102,8 +109,6 @@ func main() {
 	} else {
 		log.SetOutput(io.Discard)
 	}
-
-	autoDemo := *name == "demo" && *pass == "demo"
 
 	clientVersion := *clientVer
 	for {
@@ -179,17 +184,49 @@ func main() {
 		}
 		challenge := msg[8 : 8+16]
 
-		if autoDemo {
-			names, err := requestCharList(tcpConn, "demo", "demo", challenge, encodeFullVersion(sendVersion), imagesVersion, soundsVersion)
+		if *account != "" {
+			names, err := requestCharList(tcpConn, *account, *pass, challenge, encodeFullVersion(sendVersion), imagesVersion, soundsVersion)
 			if err != nil {
-				log.Fatalf("list demo: %v", err)
+				log.Fatalf("list characters: %v", err)
 			}
 			if len(names) == 0 {
-				log.Fatalf("no demo characters available")
+				log.Fatalf("no characters available for account %s", *account)
 			}
-			rand.Seed(time.Now().UnixNano())
-			*name = names[rand.Intn(len(names))]
-			fmt.Println("selected demo character:", *name)
+			selected := false
+			if nameProvided {
+				for _, n := range names {
+					if n == *name {
+						fmt.Println("selected character:", *name)
+						selected = true
+						break
+					}
+				}
+				if !selected {
+					fmt.Printf("character %s not found in account %s\n", *name, *account)
+				}
+			}
+			if !selected {
+				if len(names) == 1 {
+					*name = names[0]
+					fmt.Println("selected character:", *name)
+				} else {
+					fmt.Println("available characters:")
+					for i, n := range names {
+						fmt.Printf("%d) %s\n", i+1, n)
+					}
+					fmt.Print("select character: ")
+					var choice int
+					for {
+						if _, err := fmt.Scanln(&choice); err != nil || choice < 1 || choice > len(names) {
+							fmt.Printf("enter a number between 1 and %d: ", len(names))
+							continue
+						}
+						break
+					}
+					*name = names[choice-1]
+					fmt.Println("selected character:", *name)
+				}
+			}
 		}
 		playerName = *name
 
