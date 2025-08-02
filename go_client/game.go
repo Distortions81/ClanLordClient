@@ -529,5 +529,10 @@ loop:
 }
 
 func sendChat(txt string) {
+	if tcpConn != nil {
+		if err := sendCommandText(tcpConn, txt); err != nil {
+			fmt.Printf("send chat: %v\n", err)
+		}
+	}
 	addMessage(txt)
 }

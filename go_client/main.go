@@ -133,7 +133,7 @@ func main() {
 			sendVersion = baseVersion - 1
 		}
 
-		tcpConn, err := net.Dial("tcp", *host)
+		tcpConn, err = net.Dial("tcp", *host)
 		if err != nil {
 			log.Fatalf("tcp connect: %v", err)
 		}

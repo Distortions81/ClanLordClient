@@ -11,6 +11,8 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
+var tcpConn net.Conn
+
 func sendIdentifiers(conn net.Conn, clientVersion, imagesVersion, soundsVersion uint32) error {
 	const kMsgIdentifiers = 19
 	uname := os.Getenv("USER")
@@ -191,4 +193,16 @@ func requestCharList(conn net.Conn, account, password string, challenge []byte, 
 	}
 	dlog("server returned %d characters", len(names))
 	return names, nil
+}
+
+func sendCommandText(conn net.Conn, txt string) error {
+	const kMsgCommandText = 6
+	data := append([]byte(txt), 0)
+	buf := make([]byte, 16+len(data))
+	binary.BigEndian.PutUint16(buf[0:2], kMsgCommandText)
+	binary.BigEndian.PutUint16(buf[2:4], 0)
+	copy(buf[16:], data)
+	simpleEncrypt(buf[16:])
+	fmt.Printf("send command: %s\n", txt)
+	return sendMessage(conn, buf)
 }
