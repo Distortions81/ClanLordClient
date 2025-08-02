@@ -26,12 +26,12 @@ func main() {
 	name := flag.String("name", "demo", "character name")
 	pass := flag.String("pass", "demo", "character password")
 	clmov := flag.String("clmov", "", "play back a .clMov file")
-	flag.IntVar(&scale, "scale", 2, "screen scale factor (upscaling)")
-	flag.BoolVar(&interp, "interp", true, "enable motion interpolation (smoothing)")
-	flag.BoolVar(&linear, "linear", false, "use linear filtering (softer images)")
-	flag.BoolVar(&onion, "onion", false, "cross-fade sprite animations (smoother animations)")
+	flag.IntVar(&scale, "scale", 2, "upscaling")
+	flag.BoolVar(&interp, "smooth", true, "motion smoothing (linear interpolation)")
+	flag.BoolVar(&linear, "filter", false, "image filtering (bilinear)")
+	flag.BoolVar(&onion, "blend", false, "frame blending (smoother animations)")
 	clientVer := flag.Int("client-version", 1440, "client version number (for testing)")
-	flag.BoolVar(&debug, "debug", false, "enable verbose/debug logging")
+	flag.BoolVar(&debug, "debug", false, "verbose/debug logging")
 
 	flag.Parse()
 
