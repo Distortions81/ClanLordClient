@@ -195,7 +195,6 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	screen.Fill(color.RGBA{0x00, 0x00, 0x00, 0xff})
 	snap := captureDrawSnapshot()
 	alpha, fade := computeInterpolation(snap.prevTime, snap.curTime)
 	dlog("Draw alpha=%.2f shift=(%d,%d) pics=%d", alpha, snap.picShiftX, snap.picShiftY, len(snap.pictures))
@@ -411,7 +410,7 @@ func drawStatusBars(screen *ebiten.Image, snap drawSnapshot) {
 		op.ColorM.Scale(float64(clr.R)/255, float64(clr.G)/255, float64(clr.B)/255, float64(clr.A)/255)
 		screen.DrawImage(hudPixel, op)
 	}
-	gap := 8 * scale
+	gap := 56 * scale
 	barWidth := ((gameAreaSizeX*scale - gap*2) / 3) / 2
 	barHeight := 8 * scale
 	barY := gameAreaSizeY*scale - barHeight - 2
