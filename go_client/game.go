@@ -375,21 +375,18 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		op.ColorM.Scale(float64(clr.R)/255, float64(clr.G)/255, float64(clr.B)/255, float64(clr.A)/255)
 		screen.DrawImage(hudPixel, op)
 	}
-	gap := 4 * scale
+	gap := 8 * scale
 	barWidth := ((gameAreaSizeX*scale - gap*2) / 3) / 2
 	barHeight := 8 * scale
 	barY := gameAreaSizeY*scale - barHeight - 2
 	totalWidth := 3*barWidth + gap*2
 	x := (gameAreaSizeX*scale - totalWidth) / 2
-	barAlpha := uint8(0xb3)
 	drawBar := func(x int, cur, max int, clr color.RGBA) {
-		frameClr := color.RGBA{0xff, 0xff, 0xff, barAlpha}
-		bgClr := color.RGBA{0x40, 0x40, 0x40, barAlpha}
-		drawRect(x-scale, barY-scale, barWidth+2*scale, barHeight+2*scale, frameClr)
-		drawRect(x, barY, barWidth, barHeight, bgClr)
+		frameClr := color.RGBA{0xff, 0xff, 0xff, 0xff}
+		vector.StrokeRect(screen, float32(x-scale), float32(barY-scale), float32(barWidth+2*scale), float32(barHeight+2*scale), 1, frameClr, false)
 		if max > 0 && cur > 0 {
 			w := barWidth * cur / max
-			fillClr := color.RGBA{clr.R, clr.G, clr.B, barAlpha}
+			fillClr := color.RGBA{clr.R, clr.G, clr.B, 128}
 			drawRect(x, barY, w, barHeight, fillClr)
 		}
 	}
