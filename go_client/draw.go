@@ -344,7 +344,20 @@ func parseDrawState(data []byte) bool {
 			dlog("new  pics: %s", picturesSummary(newPics))
 		}
 	}
-	newArea := pictAgain == 0
+	prevAck := state.lastAckFrame
+	prevResend := state.lastResendFrame
+	newArea := false
+	if pictAgain == 0 {
+		if len(prevPics) == 0 {
+			newArea = true
+		} else if ackFrame == 0 && resendFrame == 0 {
+			newArea = true
+		} else if ackFrame < prevAck || resendFrame < prevResend {
+			newArea = true
+		}
+	}
+	state.lastAckFrame = ackFrame
+	state.lastResendFrame = resendFrame
 	if newArea {
 		state.picShiftX = 0
 		state.picShiftY = 0
