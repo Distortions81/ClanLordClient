@@ -167,6 +167,9 @@ func parseMobileTable(data []byte, pos int) int {
 		} else {
 			d.Name = string(nameBytes)
 		}
+		if d.Name != "" {
+			updatePlayerAppearance(d.Name, d.PictID, d.Colors)
+		}
 		bubbleCounter := int32(binary.BigEndian.Uint32(buf[28:32]))
 		if bubbleCounter != 0 {
 			if pos+2 > len(data) {
