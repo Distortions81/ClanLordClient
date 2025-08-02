@@ -340,7 +340,11 @@ func runGame(ctx context.Context) {
 }
 
 func sendInputLoop(ctx context.Context, conn net.Conn) {
-	ticker := time.NewTicker(2 * time.Second)
+	// The original C client sends input roughly once per frame
+	// (~20 times per second). Using a long interval here results in
+	// very sluggish or broken click-to-move behaviour, so shorten
+	// the ticker to match the classic client.
+	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		if err := sendPlayerInput(conn); err != nil {
